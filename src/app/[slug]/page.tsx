@@ -43,11 +43,11 @@ export default async function DynamicPage({ params }: PageProps) {
 
   return (
     <main className="max-w-4xl mx-auto p-6 md:p-12">
-      <div className="mb-10 text-center">
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 mb-4">
-          {page.type === 'trend' ? 'Trending Topic' : 'Niche Guide'}
+      <div className="mb-12 text-center">
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 mb-6 uppercase tracking-wider">
+          {page.type === 'trend' ? 'Editorial Analysis' : 'Expert Guide'}
         </span>
-        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-gray-900 dark:text-white leading-tight">
+        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100 leading-tight font-serif">
           {page.title}
         </h1>
       </div>
@@ -58,9 +58,10 @@ export default async function DynamicPage({ params }: PageProps) {
       </div>
 
       <article
-        className="prose prose-lg prose-blue dark:prose-invert max-w-none mx-auto
-                   prose-headings:font-bold prose-h2:text-3xl prose-h3:text-2xl
-                   prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:text-blue-500
+        className="prose prose-lg prose-indigo dark:prose-invert max-w-none mx-auto
+                   prose-headings:font-bold prose-headings:font-serif prose-h2:text-3xl prose-h3:text-2xl
+                   prose-a:text-indigo-600 dark:prose-a:text-indigo-400 hover:prose-a:text-indigo-500
+                   prose-blockquote:border-l-indigo-500 prose-blockquote:bg-gray-50 dark:prose-blockquote:bg-gray-800/50 prose-blockquote:px-6 prose-blockquote:py-2 prose-blockquote:rounded-r-lg prose-blockquote:not-italic
                    prose-img:rounded-2xl prose-img:shadow-lg prose-img:w-full prose-img:h-auto prose-img:object-contain
                    leading-relaxed text-gray-700 dark:text-gray-300"
         dangerouslySetInnerHTML={{ __html: sanitizedContent }}

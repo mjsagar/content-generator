@@ -6,8 +6,10 @@ import { getTopicFallbackImage } from '@/lib/services/image';
 
 export const dynamic = 'force-dynamic';
 
+import type { Models } from '@/prisma/contract.d';
+
 export default async function Home() {
-  let pages: any[] = [];
+  let pages: Models.public_Page[] = [];
 
   if (process.env.DATABASE_URL) {
     pages = await db.orm.public.Page
@@ -19,11 +21,11 @@ export default async function Home() {
   return (
     <main className="max-w-5xl mx-auto p-6 md:p-12">
       <header className="mb-16 text-center">
-        <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-6 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+        <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight mb-6 text-gray-900 dark:text-gray-100 font-serif">
           The Information Hub
         </h1>
         <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-          Discover the latest trends and bespoke guides generated autonomously for your reading pleasure.
+          In-depth analysis, authoritative guides, and professional insights for the modern reader.
         </p>
       </header>
 
@@ -39,11 +41,11 @@ export default async function Home() {
 
         {pages.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700">
-            <p className="text-gray-500 dark:text-gray-400 text-lg">No content generated yet. Check back soon!</p>
+            <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Insights are currently being curated. Please check back soon.</p>
           </div>
         ) : (
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {pages.map((page: any) => {
+            {pages.map((page: Models.public_Page) => {
               const fallbackUrl = getTopicFallbackImage(page.title, page.type);
               const imgMatch = page.content.match(/<img[^>]+src="([^">]+)"/);
               let imageUrl = imgMatch ? imgMatch[1] : fallbackUrl;
@@ -78,14 +80,14 @@ export default async function Home() {
                           {page.views}
                         </span>
                       </div>
-                      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2 font-serif">
                         {page.title}
                       </h3>
-                      <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-3 mb-4 flex-grow">
+                      <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-3 mb-4 flex-grow leading-relaxed">
                         {getCleanSnippet(page.content, 180)}
                       </p>
-                      <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 text-sm text-gray-500 font-medium">
-                        Read article →
+                      <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 text-sm text-gray-500 font-medium flex items-center gap-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                        Read article <span aria-hidden="true">&rarr;</span>
                       </div>
                     </div>
                   </article>

@@ -19,28 +19,38 @@ export async function generateContent(topic: string, type: 'trend' | 'niche'): P
     let prompt = '';
 
     if (type === 'trend') {
-      prompt = `Write a comprehensive, engaging, and SEO-optimised informational article about the current trending topic: "${topic}".
-                This article is for a UK audience on a UK-based website (theinformationhub.uk).
-                Use British English spelling throughout (e.g. colour, favourite, organise, centre, defence).
-                Reference UK-specific context, laws, regulations, prices in GBP (£), and cultural norms where relevant.
-                Include a catchy title, a clear introduction, detailed body paragraphs, and a conclusion.
+      prompt = `Write a highly professional, authoritative, and SEO-optimised editorial analysis about the current trending topic: "${topic}".
+                This article is for a sophisticated UK audience on a professional UK-based publication (theinformationhub.uk).
+                Maintain a journalistic, expert tone throughout. Use British English spelling (e.g., colour, favourite, organise, centre).
+                Reference UK-specific context, laws, regulations, economic impacts in GBP (£), and cultural nuances where relevant.
+                Structure the article with:
+                - A compelling, professional headline.
+                - An executive summary or 'Key Takeaways' section at the beginning.
+                - An in-depth introduction.
+                - Detailed, well-structured body sections with clear subheadings, using blockquotes for emphasis where appropriate.
+                - A concluding 'Final Thoughts' or 'Future Outlook' section.
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
-                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include this exact header image tag near the top of the article: <img src="${headerImageUrl}" alt="${topic}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
+                CRITICAL: The HTML in "content" must be semantic and rich (<h2>, <h3>, <p>, <ul>, <li>, <blockquote>, <strong>). Do NOT include literal '\\n' strings or markdown code fences. Format using standard HTML tags. Include this exact header image tag right after the main headline / at the top of the content: <img src="${headerImageUrl}" alt="${topic}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
     } else {
-      prompt = `Write a comprehensive, bespoke care guide and informational page for the specific niche: "${topic}".
-                This article is for a UK audience on a UK-based website (theinformationhub.uk).
-                Use British English spelling throughout (e.g. colour, favourite, organise, centre, defence).
-                Reference UK-specific context where relevant (e.g. UK climate for pet/plant care, UK veterinary practices, UK availability, prices in GBP).
-                Include a catchy title, a clear introduction, detailed body paragraphs (e.g., diet, exercise, temperament if it's an animal), and a conclusion.
+      prompt = `Write an authoritative, comprehensive, and bespoke expert guide for the specific niche: "${topic}".
+                This article is for a sophisticated UK audience on a professional UK-based publication (theinformationhub.uk).
+                Maintain a highly knowledgeable and professional tone. Use British English spelling (e.g., colour, favourite, organise, centre).
+                Reference UK-specific context where relevant (e.g., UK climate, professional standards, UK availability, prices in GBP).
+                Structure the guide with:
+                - A professional, definitive title.
+                - An executive summary or 'Key Takeaways' list.
+                - A thorough introduction establishing authority.
+                - Detailed body sections broken down logically with subheadings, providing advanced insights rather than basic tips.
+                - A concluding summary.
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
-                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include this exact header image tag near the top of the article: <img src="${headerImageUrl}" alt="${topic}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
+                CRITICAL: The HTML in "content" must be semantic and rich (<h2>, <h3>, <p>, <ul>, <li>, <blockquote>, <strong>). Do NOT include literal '\\n' strings or markdown code fences. Format using standard HTML tags. Include this exact header image tag right after the main title / at the top of the content: <img src="${headerImageUrl}" alt="${topic}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
     }
 
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are an expert content creator and SEO specialist writing for a UK audience. Always use British English spelling and conventions. Always output exactly valid JSON containing \"title\", \"content\", and \"slug\". The \"content\" field should contain well-formatted, beautiful HTML designed for modern styling with no literal '\\n' escape strings."
+          content: "You are an expert journalist, senior copywriter, and advanced SEO specialist writing for a UK audience. Always use British English spelling and conventions. Produce authoritative, highly professional content. Always output exactly valid JSON containing \"title\", \"content\", and \"slug\". The \"content\" field should contain well-formatted, beautiful semantic HTML designed for modern editorial styling with no literal '\\n' escape strings."
         },
         {
           role: "user",
@@ -78,11 +88,11 @@ export async function brainstormNiches(): Promise<string[]> {
       messages: [
         {
           role: "system",
-          content: "You are a creative brainstorming assistant focused on topics relevant to UK audiences. Output only a valid JSON object containing a \"niches\" array of strings."
+          content: "You are an expert editorial strategist focused on high-value topics relevant to a sophisticated UK audience. Output only a valid JSON object containing a \"niches\" array of strings."
         },
         {
           role: "user",
-          content: "Generate a list of 10 specific, highly searched but relatively niche topics that would appeal to UK audiences. Consider British dog breeds (e.g. Border Terrier, Staffordshire Bull Terrier), UK-popular houseplants, British hobbies (e.g. canal boating, allotment gardening), UK landmarks, British wildlife, or UK-specific tech/lifestyle topics. Output as a JSON object with a \"niches\" array of strings."
+          content: "Generate a list of 10 specific, highly searched, high-value, and deeply engaging professional topics tailored for a sophisticated UK audience. Consider areas like advanced career progression, high-end lifestyle, emerging UK financial/tech trends, complex niche hobbies (e.g., vintage watch collecting, bespoke tailoring), or in-depth guides to UK real estate investment. Avoid overly basic topics. Output as a JSON object with a \"niches\" array of strings."
         }
       ],
       model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
