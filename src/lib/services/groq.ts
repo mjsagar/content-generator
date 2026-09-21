@@ -10,11 +10,18 @@ const getGroqClient = () => {
   });
 };
 
-export async function generateContent(topic: string, type: 'trend' | 'niche'): Promise<{ title: string, content: string, slug: string }> {
+export async function generateContent(
+  topic: string,
+  type: 'trend' | 'niche',
+  usedImages?: Set<string>
+): Promise<{ title: string; content: string; slug: string }> {
   const groq = getGroqClient();
   try {
-    // Resolve authentic, high-quality header image
-    const headerImageUrl = await getTopicImage(topic, type);
+    // Resolve authentic, high-quality, guaranteed UNIQUE header image
+    const headerImageUrl = await getTopicImage(topic, type, usedImages);
+    if (usedImages) {
+      usedImages.add(headerImageUrl);
+    }
 
     let prompt = '';
 
@@ -27,11 +34,11 @@ export async function generateContent(topic: string, type: 'trend' | 'niche'): P
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
                 CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include this exact header image tag near the top of the article: <img src="${headerImageUrl}" alt="${topic}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
     } else {
-      prompt = `Write a comprehensive, bespoke care guide and informational page for the specific niche: "${topic}".
+      prompt = `Write a comprehensive, bespoke informational guide for the specific niche: "${topic}".
                 This article is for a UK audience on a UK-based website (theinformationhub.uk).
                 Use British English spelling throughout (e.g. colour, favourite, organise, centre, defence).
-                Reference UK-specific context where relevant (e.g. UK climate for pet/plant care, UK veterinary practices, UK availability, prices in GBP).
-                Include a catchy title, a clear introduction, detailed body paragraphs (e.g., diet, exercise, temperament if it's an animal), and a conclusion.
+                Reference UK-specific context where relevant (e.g. UK regulations, UK climate, British organisations, UK availability, prices in GBP).
+                Include a catchy title, a clear introduction, detailed body paragraphs, and a conclusion.
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
                 CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include this exact header image tag near the top of the article: <img src="${headerImageUrl}" alt="${topic}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
     }
@@ -71,23 +78,47 @@ export async function generateContent(topic: string, type: 'trend' | 'niche'): P
   }
 }
 
-export async function brainstormNiches(): Promise<string[]> {
+export async function brainstormNiches(existingTitles: string[] = []): Promise<string[]> {
   const groq = getGroqClient();
+
+  // Diverse UK categories to cycle through and explore
+  const UK_CATEGORIES = [
+    "British Wildlife & Countryside Conservation (e.g. hedgehog rescue, barn owls, red squirrels)",
+    "UK Personal Finance & Planning (e.g. Cash ISA vs Stocks & Shares ISA, Premium Bonds odds, pension tax relief)",
+    "British Heritage & Scenic Travel (e.g. Northumberland coastal walks, Snowdonia peaks, Jurassic Coast fossils)",
+    "UK Home Improvement, Allotments & Gardening (e.g. growing heritage tomatoes in UK soil, heat pump grants, Victorian house damp proofing)",
+    "British Transport & Automotive (e.g. UK electric vehicle charging networks, classic British motorcycle restoration, high-speed rail history)",
+    "Regional British Food, Cheese & Brewing (e.g. artisan stilton production, traditional sourdough bakeries in Britain, Cornish cider)",
+    "British Tech Innovations & Green Energy (e.g. North Sea offshore wind power, UK quantum computing startups, domestic solar batteries)",
+    "UK Sports, Hobbies & Outdoor Life (e.g. fell running in the Lake District, Thames rowing clubs, crown green bowls history)"
+  ];
+
+  // Pick 3 random distinct categories each time for rich variety
+  const shuffled = [...UK_CATEGORIES].sort(() => 0.5 - Math.random());
+  const selectedCategories = shuffled.slice(0, 3).join("; ");
+
+  const avoidList = existingTitles.length > 0
+    ? `\nCRITICAL: DO NOT repeat or suggest anything similar to these already covered topics:\n${existingTitles.slice(0, 30).map(t => `- ${t}`).join('\n')}`
+    : '';
+
   try {
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are a creative brainstorming assistant focused on topics relevant to UK audiences. Output only a valid JSON object containing a \"niches\" array of strings."
+          content: "You are a creative editorial brainstorming assistant for a UK publication (theinformationhub.uk). Your goal is to find distinctive, fresh, high-interest topics that have not yet been written about. Output only a valid JSON object containing a \"niches\" array of strings."
         },
         {
           role: "user",
-          content: "Generate a list of 10 specific, highly searched but relatively niche topics that would appeal to UK audiences. Consider British dog breeds (e.g. Border Terrier, Staffordshire Bull Terrier), UK-popular houseplants, British hobbies (e.g. canal boating, allotment gardening), UK landmarks, British wildlife, or UK-specific tech/lifestyle topics. Output as a JSON object with a \"niches\" array of strings."
+          content: `Generate a list of 10 specific, unique, and highly interesting article ideas tailored for a UK audience.
+Focus especially on these diverse areas: ${selectedCategories}.
+Make each topic distinctive, informative, and engaging for British readers.${avoidList}
+Every item MUST be a completely distinct subject. Output as a JSON object with a "niches" array of 10 strings.`
         }
       ],
       model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
-      temperature: 0.8,
-      max_tokens: 500,
+      temperature: 0.85,
+      max_tokens: 600,
       response_format: { type: "json_object" }
     });
 

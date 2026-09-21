@@ -56,28 +56,55 @@ export default async function AdminDashboard() {
 
   async function deduplicateArticles() {
     'use server';
-    const { extractCoreSubject } = await import('@/lib/services/image');
+    const { isTopicSimilar } = await import('@/lib/services/image');
     if (!process.env.DATABASE_URL) return;
     const allPages = await db.orm.public.Page.all();
 
-    const seen = new Map<string, any>();
+    const keptPages: any[] = [];
     for (const page of allPages) {
-      const core = extractCoreSubject(page.title).toLowerCase();
-      if (!core || core.length < 3) {
-        seen.set(page.id, page); // Keep pages with very short/no core subject
-        continue;
-      }
-      if (seen.has(core)) {
-        const existing = seen.get(core);
-        // Keep the one with more views
+      const duplicateIndex = keptPages.findIndex(k => isTopicSimilar(page.title, k.title));
+      if (duplicateIndex !== -1) {
+        const existing = keptPages[duplicateIndex];
+        // Keep the one with more views or older creation
         if (page.views > existing.views) {
           await db.orm.public.Page.where({ id: existing.id }).delete();
-          seen.set(core, page);
+          keptPages[duplicateIndex] = page;
         } else {
           await db.orm.public.Page.where({ id: page.id }).delete();
         }
       } else {
-        seen.set(core, page);
+        keptPages.push(page);
+      }
+    }
+    revalidatePath('/admin');
+    revalidatePath('/');
+  }
+
+  async function makeImagesUnique() {
+    'use server';
+    const { getTopicImage } = await import('@/lib/services/image');
+    if (!process.env.DATABASE_URL) return;
+    const allPages = await db.orm.public.Page.all();
+
+    const seenImages = new Set<string>();
+    for (const page of allPages) {
+      const imgMatch = page.content.match(/<img[^>]+src="([^">]+)"/);
+      const currentImg = imgMatch ? imgMatch[1] : null;
+
+      if (!currentImg || seenImages.has(currentImg)) {
+        // This image was already used on another page or missing; assign a fresh unique one!
+        const freshImage = await getTopicImage(page.title, page.type, seenImages);
+        seenImages.add(freshImage);
+
+        let newContent = page.content;
+        if (currentImg) {
+          newContent = newContent.replace(currentImg, freshImage);
+        } else {
+          newContent = `<img src="${freshImage}" alt="${page.title}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />\n` + newContent;
+        }
+        await db.orm.public.Page.where({ id: page.id }).update({ content: newContent });
+      } else {
+        seenImages.add(currentImg);
       }
     }
     revalidatePath('/admin');
@@ -180,6 +207,14 @@ export default async function AdminDashboard() {
                 className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-md shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
               >
                 <span>🔍</span> Deduplicate Articles
+              </button>
+            </form>
+            <form action={makeImagesUnique}>
+              <button
+                type="submit"
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-md shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+              >
+                <span>🖼️</span> Fix Duplicate Images
               </button>
             </form>
             <form action={triggerManualGeneration}>
