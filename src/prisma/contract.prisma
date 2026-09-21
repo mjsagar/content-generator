@@ -1,0 +1,21 @@
+// use prisma-8
+
+model Page {
+  id        String   @id @default(uuid())
+  slug      String   @unique
+  title     String
+  content   String
+  type      String   // "trend" or "niche"
+  views     Int      @default(0)
+  revenue   Float    @default(0.0) // Estimated revenue based on views/ad clicks
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+}
+
+model Config {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+}
