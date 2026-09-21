@@ -19,8 +19,8 @@ export default async function DynamicPage({ params }: PageProps) {
     notFound();
   }
 
-  // Clean HTML content (strips literal \n strings, fixes Unsplash URLs, etc.)
-  const sanitizedContent = sanitizeHtml(page.content);
+  // Clean HTML content (strips literal \n strings, fixes Unsplash URLs, ensures 16:9 images, etc.)
+  const sanitizedContent = sanitizeHtml(page.content, page.title, page.type);
 
   // Analytics & auto-heal content in database if it contained literal \n or deprecated URLs
   if (sanitizedContent !== page.content) {
@@ -61,7 +61,7 @@ export default async function DynamicPage({ params }: PageProps) {
         className="prose prose-lg prose-blue dark:prose-invert max-w-none mx-auto
                    prose-headings:font-bold prose-h2:text-3xl prose-h3:text-2xl
                    prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:text-blue-500
-                   prose-img:rounded-xl prose-img:shadow-lg prose-img:w-full prose-img:h-auto
+                   prose-img:rounded-2xl prose-img:shadow-lg prose-img:w-full prose-img:aspect-[16/9] prose-img:object-cover prose-img:max-h-[500px]
                    leading-relaxed text-gray-700 dark:text-gray-300"
         dangerouslySetInnerHTML={{ __html: sanitizedContent }}
       />

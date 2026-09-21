@@ -1,5 +1,6 @@
 import Groq from 'groq-sdk';
 import { sanitizeHtml } from '@/lib/utils/content';
+import { getTopicImage } from '@/lib/services/image';
 
 // We wrap initialization to avoid breaking Next.js build step when GROQ_API_KEY is not set.
 // It will throw when actually executed if the key is missing in production.
@@ -12,18 +13,21 @@ const getGroqClient = () => {
 export async function generateContent(topic: string, type: 'trend' | 'niche'): Promise<{ title: string, content: string, slug: string }> {
   const groq = getGroqClient();
   try {
+    // Resolve authentic, high-quality, unstretched header image
+    const headerImageUrl = await getTopicImage(topic, type);
+
     let prompt = '';
 
     if (type === 'trend') {
       prompt = `Write a comprehensive, engaging, and SEO-optimized informational article about the current trending topic: "${topic}".
                 Include a catchy title, a clear introduction, detailed body paragraphs, and a conclusion.
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
-                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include a highly relevant, visually appealing header image using an <img> tag near the top of the article (e.g. <img src="https://image.pollinations.ai/prompt/${encodeURIComponent(topic)}?width=800&height=400&nologo=true" alt="${topic}" class="w-full h-auto rounded-xl shadow-md mb-6" />). Do NOT wrap the output in html/head/body tags.`;
+                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include this exact header image tag near the top of the article: <img src="${headerImageUrl}" alt="${topic}" class="w-full aspect-[16/9] object-cover rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
     } else {
       prompt = `Write a comprehensive, bespoke care guide and informational page for the specific niche: "${topic}".
                 Include a catchy title, a clear introduction, detailed body paragraphs (e.g., diet, exercise, temperament if it's an animal), and a conclusion.
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
-                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include a highly relevant, visually appealing header image using an <img> tag near the top of the article (e.g. <img src="https://image.pollinations.ai/prompt/${encodeURIComponent(topic)}?width=800&height=400&nologo=true" alt="${topic}" class="w-full h-auto rounded-xl shadow-md mb-6" />). Do NOT wrap the output in html/head/body tags.`;
+                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include this exact header image tag near the top of the article: <img src="${headerImageUrl}" alt="${topic}" class="w-full aspect-[16/9] object-cover rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
     }
 
     const chatCompletion = await groq.chat.completions.create({
@@ -51,7 +55,7 @@ export async function generateContent(topic: string, type: 'trend' | 'niche'): P
     const parsedResult = JSON.parse(result);
     return {
       title: parsedResult.title,
-      content: sanitizeHtml(parsedResult.content),
+      content: sanitizeHtml(parsedResult.content, parsedResult.title, type),
       slug: parsedResult.slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
     };
 

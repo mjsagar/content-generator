@@ -1,6 +1,8 @@
 import { db } from '@/prisma/db';
 import Link from 'next/link';
 import { getCleanSnippet } from '@/lib/utils/content';
+import CardImage from '@/components/CardImage';
+import { getTopicFallbackImage } from '@/lib/services/image';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,29 +44,23 @@ export default async function Home() {
         ) : (
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
             {pages.map((page: any) => {
+              const fallbackUrl = getTopicFallbackImage(page.title, page.type);
               const imgMatch = page.content.match(/<img[^>]+src="([^">]+)"/);
-              let imageUrl = imgMatch ? imgMatch[1] : null;
-              if (imageUrl) {
-                imageUrl = imageUrl.replace(
-                  /https?:\/\/source\.unsplash\.com\/(?:800x400\/\?)?([^"'\s>]+)/g,
-                  (_: string, q: string) => `https://image.pollinations.ai/prompt/${encodeURIComponent(decodeURIComponent(q))}?width=800&height=400&nologo=true`
-                );
+              let imageUrl = imgMatch ? imgMatch[1] : fallbackUrl;
+              if (!imageUrl || imageUrl.includes('source.unsplash.com')) {
+                imageUrl = fallbackUrl;
               }
 
               return (
                 <Link key={page.id} href={`/${page.slug}`} className="group">
                   <article className="flex flex-col h-full bg-white dark:bg-gray-900 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 dark:border-gray-800 overflow-hidden">
-                    {imageUrl && (
-                      <div className="relative w-full h-44 overflow-hidden bg-gray-100 dark:bg-gray-800">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={imageUrl}
-                          alt={page.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          loading="lazy"
-                        />
-                      </div>
-                    )}
+                    <div className="relative w-full aspect-[16/9] overflow-hidden bg-gray-100 dark:bg-gray-800">
+                      <CardImage
+                        src={imageUrl}
+                        alt={page.title}
+                        fallbackSrc={fallbackUrl}
+                      />
+                    </div>
                     <div className="p-6 flex flex-col h-full flex-1">
                       <div className="flex justify-between items-start mb-4">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide uppercase ${

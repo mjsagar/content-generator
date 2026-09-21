@@ -45,7 +45,7 @@ export default async function AdminDashboard() {
     if (!process.env.DATABASE_URL) return;
     const allPages = await db.orm.public.Page.all();
     for (const p of allPages) {
-      const cleaned = sanitizeHtml(p.content);
+      const cleaned = sanitizeHtml(p.content, p.title, p.type);
       if (cleaned !== p.content) {
         await db.orm.public.Page.where({ id: p.id }).update({ content: cleaned });
       }
