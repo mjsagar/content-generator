@@ -10,7 +10,8 @@
     "lint": "eslint",
     "postinstall": "prisma skills sync || exit 0",
     "contract:emit": "prisma contract emit",
-    "generate": "npx tsx scripts/generate.ts"
+    "generate": "npx tsx scripts/generate.ts",
+    "clean": "npx tsx scripts/clean-content.ts"
   },
   "dependencies": {
     "@prisma/cli-engine": "^0.4.0",

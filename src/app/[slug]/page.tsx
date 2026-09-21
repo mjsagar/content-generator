@@ -1,6 +1,7 @@
 import { db } from '@/prisma/db';
 import { notFound } from 'next/navigation';
 import AdBanner from '@/components/AdBanner';
+import { sanitizeHtml } from '@/lib/utils/content';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -18,19 +19,27 @@ export default async function DynamicPage({ params }: PageProps) {
     notFound();
   }
 
-  // Analytics
-  await db.orm.public.Page
-    .where({ id: page.id })
-    .update({
-      views: page.views + 1,
-      revenue: page.revenue + 0.01
-    });
+  // Clean HTML content (strips literal \n strings, fixes Unsplash URLs, etc.)
+  const sanitizedContent = sanitizeHtml(page.content);
 
-  // Replace any broken/deprecated source.unsplash.com URLs with reliable AI generated images
-  const sanitizedContent = page.content.replace(
-    /https?:\/\/source\.unsplash\.com\/(?:800x400\/\?)?([^"'\s>]+)/g,
-    (_, query) => `https://image.pollinations.ai/prompt/${encodeURIComponent(decodeURIComponent(query))}?width=800&height=400&nologo=true`
-  );
+  // Analytics & auto-heal content in database if it contained literal \n or deprecated URLs
+  if (sanitizedContent !== page.content) {
+    await db.orm.public.Page
+      .where({ id: page.id })
+      .update({
+        content: sanitizedContent,
+        views: page.views + 1,
+        revenue: page.revenue + 0.01
+      })
+      .catch((err) => console.error('Error updating page:', err));
+  } else {
+    await db.orm.public.Page
+      .where({ id: page.id })
+      .update({
+        views: page.views + 1,
+        revenue: page.revenue + 0.01
+      });
+  }
 
   return (
     <main className="max-w-4xl mx-auto p-6 md:p-12">

@@ -1,4 +1,5 @@
 import Groq from 'groq-sdk';
+import { sanitizeHtml } from '@/lib/utils/content';
 
 // We wrap initialization to avoid breaking Next.js build step when GROQ_API_KEY is not set.
 // It will throw when actually executed if the key is missing in production.
@@ -17,19 +18,19 @@ export async function generateContent(topic: string, type: 'trend' | 'niche'): P
       prompt = `Write a comprehensive, engaging, and SEO-optimized informational article about the current trending topic: "${topic}".
                 Include a catchy title, a clear introduction, detailed body paragraphs, and a conclusion.
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
-                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>). Include a highly relevant, visually appealing header image using an <img> tag near the top of the article (e.g. <img src="https://image.pollinations.ai/prompt/${encodeURIComponent(topic)}?width=800&height=400&nologo=true" alt="${topic}" class="w-full h-auto rounded-xl shadow-md mb-6" />). Do NOT wrap the output in html/head/body tags.`;
+                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include a highly relevant, visually appealing header image using an <img> tag near the top of the article (e.g. <img src="https://image.pollinations.ai/prompt/${encodeURIComponent(topic)}?width=800&height=400&nologo=true" alt="${topic}" class="w-full h-auto rounded-xl shadow-md mb-6" />). Do NOT wrap the output in html/head/body tags.`;
     } else {
       prompt = `Write a comprehensive, bespoke care guide and informational page for the specific niche: "${topic}".
                 Include a catchy title, a clear introduction, detailed body paragraphs (e.g., diet, exercise, temperament if it's an animal), and a conclusion.
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
-                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>). Include a highly relevant, visually appealing header image using an <img> tag near the top of the article (e.g. <img src="https://image.pollinations.ai/prompt/${encodeURIComponent(topic)}?width=800&height=400&nologo=true" alt="${topic}" class="w-full h-auto rounded-xl shadow-md mb-6" />). Do NOT wrap the output in html/head/body tags.`;
+                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include a highly relevant, visually appealing header image using an <img> tag near the top of the article (e.g. <img src="https://image.pollinations.ai/prompt/${encodeURIComponent(topic)}?width=800&height=400&nologo=true" alt="${topic}" class="w-full h-auto rounded-xl shadow-md mb-6" />). Do NOT wrap the output in html/head/body tags.`;
     }
 
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are an expert content creator and SEO specialist. Always output exactly valid JSON containing \"title\", \"content\", and \"slug\". The \"content\" field should contain well-formatted, beautiful HTML designed for modern styling."
+          content: "You are an expert content creator and SEO specialist. Always output exactly valid JSON containing \"title\", \"content\", and \"slug\". The \"content\" field should contain well-formatted, beautiful HTML designed for modern styling with no literal '\\n' escape strings."
         },
         {
           role: "user",
@@ -50,7 +51,7 @@ export async function generateContent(topic: string, type: 'trend' | 'niche'): P
     const parsedResult = JSON.parse(result);
     return {
       title: parsedResult.title,
-      content: parsedResult.content,
+      content: sanitizeHtml(parsedResult.content),
       slug: parsedResult.slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
     };
 

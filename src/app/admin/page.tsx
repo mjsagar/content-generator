@@ -39,6 +39,21 @@ export default async function AdminDashboard() {
     revalidatePath('/');
   }
 
+  async function cleanAllArticles() {
+    'use server';
+    const { sanitizeHtml } = await import('@/lib/utils/content');
+    if (!process.env.DATABASE_URL) return;
+    const allPages = await db.orm.public.Page.all();
+    for (const p of allPages) {
+      const cleaned = sanitizeHtml(p.content);
+      if (cleaned !== p.content) {
+        await db.orm.public.Page.where({ id: p.id }).update({ content: cleaned });
+      }
+    }
+    revalidatePath('/admin');
+    revalidatePath('/');
+  }
+
   return (
     <main className="max-w-6xl mx-auto p-6 md:p-12">
       <h1 className="text-4xl font-bold mb-8 text-gray-900 dark:text-white">Admin Dashboard</h1>
@@ -93,19 +108,29 @@ export default async function AdminDashboard() {
 
         <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Manual Generation</h3>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">Content Management</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Trigger a cycle immediately (fetches latest Google Trends, brainstorms niches, and saves articles to DB).
+              Trigger instant content generation or sanitize all existing articles (fixes literal \n escapes and broken images).
             </p>
           </div>
-          <form action={triggerManualGeneration}>
-            <button
-              type="submit"
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-md shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
-            >
-              <span>⚡</span> Run Generation Now
-            </button>
-          </form>
+          <div className="flex flex-wrap items-center gap-3">
+            <form action={cleanAllArticles}>
+              <button
+                type="submit"
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+              >
+                <span>🧹</span> Sanitize All Articles
+              </button>
+            </form>
+            <form action={triggerManualGeneration}>
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-md shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+              >
+                <span>⚡</span> Run Generation Now
+              </button>
+            </form>
+          </div>
         </div>
       </section>
 

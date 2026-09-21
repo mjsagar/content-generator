@@ -1,5 +1,6 @@
 import { db } from '@/prisma/db';
 import Link from 'next/link';
+import { getCleanSnippet } from '@/lib/utils/content';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,7 +86,7 @@ export default async function Home() {
                         {page.title}
                       </h3>
                       <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-3 mb-4 flex-grow">
-                        {page.content.replace(/<[^>]*>?/gm, '').substring(0, 180)}...
+                        {getCleanSnippet(page.content, 180)}
                       </p>
                       <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-800 text-sm text-gray-500 font-medium">
                         Read article →
