@@ -61,7 +61,7 @@ export default async function DynamicPage({ params }: PageProps) {
         className="prose prose-lg prose-blue dark:prose-invert max-w-none mx-auto
                    prose-headings:font-bold prose-h2:text-3xl prose-h3:text-2xl
                    prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:text-blue-500
-                   prose-img:rounded-2xl prose-img:shadow-lg prose-img:w-full prose-img:aspect-[16/9] prose-img:object-cover prose-img:max-h-[500px]
+                   prose-img:rounded-2xl prose-img:shadow-lg prose-img:w-full prose-img:h-auto prose-img:object-contain
                    leading-relaxed text-gray-700 dark:text-gray-300"
         dangerouslySetInnerHTML={{ __html: sanitizedContent }}
       />

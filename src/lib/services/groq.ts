@@ -13,28 +13,34 @@ const getGroqClient = () => {
 export async function generateContent(topic: string, type: 'trend' | 'niche'): Promise<{ title: string, content: string, slug: string }> {
   const groq = getGroqClient();
   try {
-    // Resolve authentic, high-quality, unstretched header image
+    // Resolve authentic, high-quality header image
     const headerImageUrl = await getTopicImage(topic, type);
 
     let prompt = '';
 
     if (type === 'trend') {
-      prompt = `Write a comprehensive, engaging, and SEO-optimized informational article about the current trending topic: "${topic}".
+      prompt = `Write a comprehensive, engaging, and SEO-optimised informational article about the current trending topic: "${topic}".
+                This article is for a UK audience on a UK-based website (theinformationhub.uk).
+                Use British English spelling throughout (e.g. colour, favourite, organise, centre, defence).
+                Reference UK-specific context, laws, regulations, prices in GBP (£), and cultural norms where relevant.
                 Include a catchy title, a clear introduction, detailed body paragraphs, and a conclusion.
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
-                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include this exact header image tag near the top of the article: <img src="${headerImageUrl}" alt="${topic}" class="w-full aspect-[16/9] object-cover rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
+                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include this exact header image tag near the top of the article: <img src="${headerImageUrl}" alt="${topic}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
     } else {
       prompt = `Write a comprehensive, bespoke care guide and informational page for the specific niche: "${topic}".
+                This article is for a UK audience on a UK-based website (theinformationhub.uk).
+                Use British English spelling throughout (e.g. colour, favourite, organise, centre, defence).
+                Reference UK-specific context where relevant (e.g. UK climate for pet/plant care, UK veterinary practices, UK availability, prices in GBP).
                 Include a catchy title, a clear introduction, detailed body paragraphs (e.g., diet, exercise, temperament if it's an animal), and a conclusion.
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
-                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include this exact header image tag near the top of the article: <img src="${headerImageUrl}" alt="${topic}" class="w-full aspect-[16/9] object-cover rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
+                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>, <li>). Do NOT include literal '\\n' strings or markdown code fences; format using standard HTML tags. Include this exact header image tag near the top of the article: <img src="${headerImageUrl}" alt="${topic}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
     }
 
     const chatCompletion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are an expert content creator and SEO specialist. Always output exactly valid JSON containing \"title\", \"content\", and \"slug\". The \"content\" field should contain well-formatted, beautiful HTML designed for modern styling with no literal '\\n' escape strings."
+          content: "You are an expert content creator and SEO specialist writing for a UK audience. Always use British English spelling and conventions. Always output exactly valid JSON containing \"title\", \"content\", and \"slug\". The \"content\" field should contain well-formatted, beautiful HTML designed for modern styling with no literal '\\n' escape strings."
         },
         {
           role: "user",
@@ -72,11 +78,11 @@ export async function brainstormNiches(): Promise<string[]> {
       messages: [
         {
           role: "system",
-          content: "You are a creative brainstorming assistant. Output only a valid JSON array of strings containing your brainstormed topics."
+          content: "You are a creative brainstorming assistant focused on topics relevant to UK audiences. Output only a valid JSON object containing a \"niches\" array of strings."
         },
         {
           role: "user",
-          content: "Generate a list of 10 specific, highly searched but relatively niche topics. For example, specific dog breeds, rare houseplants, niche hobbies, or specific tech tools. Output as a JSON array of strings named \"niches\"."
+          content: "Generate a list of 10 specific, highly searched but relatively niche topics that would appeal to UK audiences. Consider British dog breeds (e.g. Border Terrier, Staffordshire Bull Terrier), UK-popular houseplants, British hobbies (e.g. canal boating, allotment gardening), UK landmarks, British wildlife, or UK-specific tech/lifestyle topics. Output as a JSON object with a \"niches\" array of strings."
         }
       ],
       model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",

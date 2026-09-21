@@ -8,7 +8,7 @@ import { getTopicFallbackImage } from '@/lib/services/image';
  * - Strips accidental markdown code fences (```html ... ```)
  * - Converts literal backslash escape sequences (\n, \r, \t) to actual whitespace/newlines
  * - Replaces double-escaped HTML quotes
- * - Normalizes image tags to modern 16:9 aspect-ratio and object-cover to prevent stretching
+ * - Normalizes image tags with rounded corners and shadows (no forced aspect ratio crop)
  * - Ensures every article has a valid, non-broken header image
  * - Removes empty paragraph tags
  */
@@ -36,35 +36,39 @@ export function sanitizeHtml(content: string, title?: string, type?: string): st
     .replace(/<p>\s*<\/p>/g, '')
     .trim();
 
-  // Ensure image tags have proper classes to prevent stretching (16:9 ratio, object-cover)
-  cleaned = cleaned.replace(/<img\s+([^>]*?)class="([^"]*?)"([^>]*?)>/gi, (_, before, cls, after) => {
+  // Ensure image tags have proper styling classes (no forced aspect ratio — shows full image)
+  cleaned = cleaned.replace(/<img\s+([^>]*?)class="([^]*?)"([^>]*?)>/gi, (_, before, cls, after) => {
     let updatedCls = cls;
-    // Replace h-auto or fixed height with responsive 16:9
+    // Remove any forced aspect ratio or object-cover that would crop the image
     updatedCls = updatedCls.replace(/h-\w+/g, '');
-    if (!updatedCls.includes('object-cover')) updatedCls += ' object-cover';
-    if (!updatedCls.includes('aspect-')) updatedCls += ' aspect-[16/9]';
+    updatedCls = updatedCls.replace(/aspect-\[[\d/]+\]/g, '');
+    updatedCls = updatedCls.replace(/object-cover/g, '');
+    // Add clean styling
     if (!updatedCls.includes('rounded-')) updatedCls += ' rounded-2xl';
     if (!updatedCls.includes('w-full')) updatedCls += ' w-full';
     if (!updatedCls.includes('shadow-')) updatedCls += ' shadow-lg';
     if (!updatedCls.includes('mb-')) updatedCls += ' mb-8';
+    if (!updatedCls.includes('h-auto')) updatedCls += ' h-auto';
+    // Clean up extra whitespace
+    updatedCls = updatedCls.replace(/\s+/g, ' ').trim();
 
     // Add client-side onerror fallback to prevent broken browser image icons
     const hasOnError = before.includes('onerror=') || after.includes('onerror=');
     const onErrorAttr = hasOnError ? '' : ` onerror="this.onerror=null;this.src='${fallbackImg}'"`;
 
-    return `<img ${before}class="${updatedCls.trim()}"${onErrorAttr}${after}>`;
+    return `<img ${before}class="${updatedCls}"${onErrorAttr}${after}>`;
   });
 
   // If there's an img tag without a class attribute, add complete styling
   cleaned = cleaned.replace(/<img(?!\s+[^>]*?class=)([^>]*?)>/gi, (match, rest) => {
     const hasOnError = rest.includes('onerror=');
     const onErrorAttr = hasOnError ? '' : ` onerror="this.onerror=null;this.src='${fallbackImg}'"`;
-    return `<img class="w-full aspect-[16/9] object-cover rounded-2xl shadow-lg mb-8"${onErrorAttr}${rest}>`;
+    return `<img class="w-full h-auto rounded-2xl shadow-lg mb-8"${onErrorAttr}${rest}>`;
   });
 
   // If an article has no image at all and a title is provided, prepend a fallback image
   if (title && !/<img[^>]+src=/i.test(cleaned)) {
-    cleaned = `<img src="${fallbackImg}" alt="${title}" class="w-full aspect-[16/9] object-cover rounded-2xl shadow-lg mb-8" onerror="this.onerror=null;this.src='${fallbackImg}'" />\n` + cleaned;
+    cleaned = `<img src="${fallbackImg}" alt="${title}" class="w-full h-auto rounded-2xl shadow-lg mb-8" onerror="this.onerror=null;this.src='${fallbackImg}'" />\n` + cleaned;
   }
 
   return cleaned;

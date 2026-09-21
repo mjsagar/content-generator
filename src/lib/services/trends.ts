@@ -4,7 +4,7 @@ export async function getLatestTrends() {
   const parser = new Parser();
   const trends: string[] = [];
   try {
-    const feed = await parser.parseURL('https://trends.google.com/trending/rss?geo=US');
+    const feed = await parser.parseURL('https://trends.google.com/trending/rss?geo=GB');
     feed.items.forEach(item => {
       if (item.title) {
         trends.push(item.title);
