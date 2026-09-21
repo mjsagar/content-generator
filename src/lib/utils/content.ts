@@ -16,6 +16,9 @@ export function sanitizeHtml(content: string): string {
     // Remove markdown code fences if LLM wrapped HTML in ```html ... ```
     .replace(/^```(?:html)?\s*/i, '')
     .replace(/\s*```$/i, '')
+    // Replace double-escaped quotes in HTML tags (e.g. src=\"...\" -> src="...")
+    .replace(/\\"/g, '"')
+    .replace(/\\'/g, "'")
     // Replace literal backslash escape sequences (\n, \r, \r\n, \t) with real characters
     // Matches \n, \\n, \\\n etc.
     .replace(/\\+r\\+n|\\+n|\\+r/g, '\n')
