@@ -54,6 +54,36 @@ export default async function AdminDashboard() {
     revalidatePath('/');
   }
 
+  async function deduplicateArticles() {
+    'use server';
+    const { extractCoreSubject } = await import('@/lib/services/image');
+    if (!process.env.DATABASE_URL) return;
+    const allPages = await db.orm.public.Page.all();
+
+    const seen = new Map<string, any>();
+    for (const page of allPages) {
+      const core = extractCoreSubject(page.title).toLowerCase();
+      if (!core || core.length < 3) {
+        seen.set(page.id, page); // Keep pages with very short/no core subject
+        continue;
+      }
+      if (seen.has(core)) {
+        const existing = seen.get(core);
+        // Keep the one with more views
+        if (page.views > existing.views) {
+          await db.orm.public.Page.where({ id: existing.id }).delete();
+          seen.set(core, page);
+        } else {
+          await db.orm.public.Page.where({ id: page.id }).delete();
+        }
+      } else {
+        seen.set(core, page);
+      }
+    }
+    revalidatePath('/admin');
+    revalidatePath('/');
+  }
+
   return (
     <main className="max-w-6xl mx-auto p-6 md:p-12">
       <h1 className="text-4xl font-bold mb-8 text-gray-900 dark:text-white">Admin Dashboard</h1>
@@ -120,6 +150,14 @@ export default async function AdminDashboard() {
                 className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
               >
                 <span>🧹</span> Sanitize All Articles
+              </button>
+            </form>
+            <form action={deduplicateArticles}>
+              <button
+                type="submit"
+                className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-md shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+              >
+                <span>🔍</span> Deduplicate Articles
               </button>
             </form>
             <form action={triggerManualGeneration}>
