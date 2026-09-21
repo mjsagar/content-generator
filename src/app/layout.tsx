@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -16,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "The Information Hub",
   description: "Discover the latest trends and bespoke guides generated autonomously.",
+  other: {
+    'google-adsense-account': 'ca-pub-5126251201737249',
+  },
 };
 
 export default function RootLayout({
@@ -23,28 +25,22 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const rawClientId = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID?.trim();
-  const adsenseClientId = rawClientId
-    ? rawClientId.startsWith('ca-pub-')
-      ? rawClientId
-      : rawClientId.startsWith('pub-')
-        ? `ca-${rawClientId}`
-        : `ca-pub-${rawClientId}`
-    : '';
-  const isAdsenseConfigured = adsenseClientId.length > 10 && !adsenseClientId.includes('XXXX');
+  const rawClientId = (process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID || 'ca-pub-5126251201737249').trim();
+  const adsenseClientId = rawClientId.startsWith('ca-pub-')
+    ? rawClientId
+    : rawClientId.startsWith('pub-')
+      ? `ca-${rawClientId}`
+      : `ca-pub-${rawClientId}`;
 
   return (
     <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
       <head>
-        {isAdsenseConfigured && (
-          <Script
-            id="adsense-init"
-            async
-            strategy="afterInteractive"
-            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClientId}`}
-            crossOrigin="anonymous"
-          />
-        )}
+        <meta name="google-adsense-account" content={adsenseClientId} />
+        <script
+          async
+          src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsenseClientId}`}
+          crossOrigin="anonymous"
+        />
       </head>
       <body
         suppressHydrationWarning
