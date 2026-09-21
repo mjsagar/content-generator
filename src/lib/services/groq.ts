@@ -17,12 +17,12 @@ export async function generateContent(topic: string, type: 'trend' | 'niche'): P
       prompt = `Write a comprehensive, engaging, and SEO-optimized informational article about the current trending topic: "${topic}".
                 Include a catchy title, a clear introduction, detailed body paragraphs, and a conclusion.
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
-                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>). Include a highly relevant, visually appealing Unsplash source image using an <img> tag near the top of the article (e.g. <img src="https://source.unsplash.com/800x400/?${encodeURIComponent(topic)}" alt="${topic}" class="w-full h-auto rounded-xl shadow-md mb-6" />). Do NOT wrap the output in html/head/body tags.`;
+                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>). Include a highly relevant, visually appealing header image using an <img> tag near the top of the article (e.g. <img src="https://image.pollinations.ai/prompt/${encodeURIComponent(topic)}?width=800&height=400&nologo=true" alt="${topic}" class="w-full h-auto rounded-xl shadow-md mb-6" />). Do NOT wrap the output in html/head/body tags.`;
     } else {
       prompt = `Write a comprehensive, bespoke care guide and informational page for the specific niche: "${topic}".
                 Include a catchy title, a clear introduction, detailed body paragraphs (e.g., diet, exercise, temperament if it's an animal), and a conclusion.
                 Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
-                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>). Include a highly relevant, visually appealing Unsplash source image using an <img> tag near the top of the article (e.g. <img src="https://source.unsplash.com/800x400/?${encodeURIComponent(topic)}" alt="${topic}" class="w-full h-auto rounded-xl shadow-md mb-6" />). Do NOT wrap the output in html/head/body tags.`;
+                CRITICAL: The HTML in "content" must be modern, using semantic tags (<h2>, <p>, <ul>). Include a highly relevant, visually appealing header image using an <img> tag near the top of the article (e.g. <img src="https://image.pollinations.ai/prompt/${encodeURIComponent(topic)}?width=800&height=400&nologo=true" alt="${topic}" class="w-full h-auto rounded-xl shadow-md mb-6" />). Do NOT wrap the output in html/head/body tags.`;
     }
 
     const chatCompletion = await groq.chat.completions.create({
@@ -36,7 +36,7 @@ export async function generateContent(topic: string, type: 'trend' | 'niche'): P
           content: prompt
         }
       ],
-      model: "llama3-8b-8192",
+      model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
       temperature: 0.7,
       max_tokens: 3000,
       response_format: { type: "json_object" }
@@ -74,7 +74,7 @@ export async function brainstormNiches(): Promise<string[]> {
           content: "Generate a list of 10 specific, highly searched but relatively niche topics. For example, specific dog breeds, rare houseplants, niche hobbies, or specific tech tools. Output as a JSON array of strings named \"niches\"."
         }
       ],
-      model: "llama3-8b-8192",
+      model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
       temperature: 0.8,
       max_tokens: 500,
       response_format: { type: "json_object" }

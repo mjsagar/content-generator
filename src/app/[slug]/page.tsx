@@ -26,6 +26,12 @@ export default async function DynamicPage({ params }: PageProps) {
       revenue: page.revenue + 0.01
     });
 
+  // Replace any broken/deprecated source.unsplash.com URLs with reliable AI generated images
+  const sanitizedContent = page.content.replace(
+    /https?:\/\/source\.unsplash\.com\/(?:800x400\/\?)?([^"'\s>]+)/g,
+    (_, query) => `https://image.pollinations.ai/prompt/${encodeURIComponent(decodeURIComponent(query))}?width=800&height=400&nologo=true`
+  );
+
   return (
     <main className="max-w-4xl mx-auto p-6 md:p-12">
       <div className="mb-10 text-center">
@@ -39,16 +45,16 @@ export default async function DynamicPage({ params }: PageProps) {
 
       {/* Top Ad Banner */}
       <div className="my-10">
-        <AdBanner position="top" />
+        <AdBanner position="top" topic={page.title} slug={page.slug} />
       </div>
 
       <article
         className="prose prose-lg prose-blue dark:prose-invert max-w-none mx-auto
                    prose-headings:font-bold prose-h2:text-3xl prose-h3:text-2xl
                    prose-a:text-blue-600 dark:prose-a:text-blue-400 hover:prose-a:text-blue-500
-                   prose-img:rounded-xl prose-img:shadow-lg
+                   prose-img:rounded-xl prose-img:shadow-lg prose-img:w-full prose-img:h-auto
                    leading-relaxed text-gray-700 dark:text-gray-300"
-        dangerouslySetInnerHTML={{ __html: page.content }}
+        dangerouslySetInnerHTML={{ __html: sanitizedContent }}
       />
 
       {/* Bottom Ad Banner */}
@@ -56,7 +62,7 @@ export default async function DynamicPage({ params }: PageProps) {
         <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-6">
           Thank you for reading our guide on {page.title}.
         </p>
-        <AdBanner position="bottom" />
+        <AdBanner position="bottom" topic={page.title} slug={page.slug} />
       </div>
     </main>
   );
