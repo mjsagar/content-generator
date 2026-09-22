@@ -1,4 +1,5 @@
 import { db } from '@/prisma/db';
+import type { Models } from '@/prisma/contract.d';
 import Link from 'next/link';
 import { getCleanSnippet } from '@/lib/utils/content';
 import CardImage from '@/components/CardImage';
@@ -7,7 +8,7 @@ import { getTopicFallbackImage } from '@/lib/services/image';
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  let pages: any[] = [];
+  let pages: Models.public_Page[] = [];
 
   if (process.env.DATABASE_URL) {
     pages = await db.orm.public.Page
@@ -43,7 +44,7 @@ export default async function Home() {
           </div>
         ) : (
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {pages.map((page: any) => {
+            {pages.map((page: Models.public_Page) => {
               const fallbackUrl = getTopicFallbackImage(page.title, page.type);
               const imgMatch = page.content.match(/<img[^>]+src="([^">]+)"/);
               let imageUrl = imgMatch ? imgMatch[1] : fallbackUrl;
