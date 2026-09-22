@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "The Information Hub",
-  description: "Discover the latest trends and bespoke guides generated autonomously.",
+  description: "Your definitive daily digest of emerging trends, insightful analysis, and expert guides across Britain.",
   other: {
     'google-adsense-account': 'ca-pub-5126251201737249',
   },

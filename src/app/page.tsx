@@ -23,7 +23,7 @@ export default async function Home() {
           The Information Hub
         </h1>
         <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-          Discover the latest trends and bespoke guides generated autonomously for your reading pleasure.
+          Your definitive daily digest of emerging trends, insightful analysis, and expert guides across Britain.
         </p>
       </header>
 
