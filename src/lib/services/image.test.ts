@@ -145,6 +145,14 @@ describe('isPageRelevant', () => {
     expect(isPageRelevant('Bruce Willis', 'Bruce Willis', 'Bruce Willis: Action Icon Who Rules UK')).toBe(true);
     expect(isPageRelevant('Alexis Bledel', 'Alexis Bledel', 'Alexis Bledel: From Gilmore Girls Icon to UK')).toBe(true);
   });
+
+  it('should reject Donald Trump Jr. when article is about former US president Donald Trump', async () => {
+    const { isPageRelevant } = await import('./image');
+    const topic = 'Trump TV: How the Former US President’s Media Empire Is Shaping British Viewership';
+
+    expect(isPageRelevant('Donald Trump', 'Donald Trump', topic)).toBe(true);
+    expect(isPageRelevant('Donald Trump Jr.', 'Donald Trump', topic)).toBe(false);
+  });
 });
 
 describe('extractCandidateSearchTerms', () => {
@@ -164,5 +172,14 @@ describe('extractCandidateSearchTerms', () => {
     expect(terms).toContain('European hedgehog');
     expect(terms).toContain('Hedgehog');
   });
+
+  it('should extract Donald Trump for Trump TV topic', async () => {
+    const { extractCandidateSearchTerms } = await import('./image');
+    const terms = extractCandidateSearchTerms('Trump TV: How the Former US President’s Media Empire Is Shaping British Viewership');
+
+    expect(terms).toContain('Donald Trump');
+    expect(terms[0]).toBe('Donald Trump');
+  });
 });
+
 

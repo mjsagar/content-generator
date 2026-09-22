@@ -241,6 +241,20 @@ export function isPageRelevant(pageTitle: string, term: string, topicOrTitle: st
     return false;
   }
 
+  // Reject "Jr." pages if the topic does not mention "Jr" (e.g. Donald Trump Jr. for Donald Trump)
+  if (!lowerTopic.includes('jr') && (lowerPage.includes('jr.') || lowerPage.includes(' jr ') || lowerPage.endsWith(' jr'))) {
+    return false;
+  }
+
+  // If search term is a two-word person name (e.g. "Frank Gardner"), candidate page must contain the first name
+  const termWords = term.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(w => w.length >= 3 && !STOP_WORDS.has(w));
+  if (termWords.length === 2 && (lowerTopic.includes('who') || lowerTopic.includes('icon') || lowerTopic.includes('voice') || lowerTopic.includes('president') || lowerTopic.includes('star'))) {
+    const pageWords = new Set(lowerPage.replace(/[^a-z0-9\s]/g, '').split(/\s+/));
+    if (!termWords.every(tw => pageWords.has(tw))) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -253,6 +267,7 @@ export function extractCandidateSearchTerms(title: string): string[] {
   const lower = title.toLowerCase();
 
   // 1. High-priority specific entity cues
+  if (lower.includes('trump') && !lower.includes('jr')) terms.push('Donald Trump');
   if (lower.includes('beaver')) terms.push('Eurasian beaver', 'Beaver in the United Kingdom', 'Beaver');
   if (lower.includes('hedgehog')) terms.push('European hedgehog', 'Hedgehog');
   if (lower.includes('monstera')) terms.push('Monstera deliciosa');
@@ -267,7 +282,7 @@ export function extractCandidateSearchTerms(title: string): string[] {
   }
   if (lower.includes('bruce willis')) terms.push('Bruce Willis');
   if (lower.includes('alexis bledel')) terms.push('Alexis Bledel');
-  if (lower.includes('frank gardner')) terms.push('Frank Gardner');
+  if (lower.includes('frank gardner')) terms.push('Frank Gardner (journalist)', 'Frank Gardner');
   if (lower.includes('ed davey')) terms.push('Ed Davey');
   if (lower.includes('russell davies') || lower.includes('russell t davies')) terms.push('Russell T Davies');
   if (lower.includes('inside soap')) terms.push('Inside Soap Awards');
