@@ -1,5 +1,8 @@
 import { db } from '@/prisma/db';
 import { revalidatePath } from 'next/cache';
+import { runContentGenerationJob } from '@/lib/jobs/runner';
+import { sanitizeHtml } from '@/lib/utils/content';
+import { isTopicSimilar, getTopicImage } from '@/lib/services/image';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +36,6 @@ export default async function AdminDashboard() {
 
   async function triggerManualGeneration() {
     'use server';
-    const { runContentGenerationJob } = await import('@/lib/jobs/runner');
     await runContentGenerationJob();
     revalidatePath('/admin');
     revalidatePath('/');
@@ -41,7 +43,6 @@ export default async function AdminDashboard() {
 
   async function cleanAllArticles() {
     'use server';
-    const { sanitizeHtml } = await import('@/lib/utils/content');
     if (!process.env.DATABASE_URL) return;
     const allPages = await db.orm.public.Page.all();
 
@@ -60,7 +61,6 @@ export default async function AdminDashboard() {
 
   async function deduplicateArticles() {
     'use server';
-    const { isTopicSimilar } = await import('@/lib/services/image');
     if (!process.env.DATABASE_URL) return;
     const allPages = await db.orm.public.Page.all();
 
@@ -92,7 +92,6 @@ export default async function AdminDashboard() {
 
   async function makeImagesUnique() {
     'use server';
-    const { getTopicImage } = await import('@/lib/services/image');
     if (!process.env.DATABASE_URL) return;
     const allPages = await db.orm.public.Page.all();
 
