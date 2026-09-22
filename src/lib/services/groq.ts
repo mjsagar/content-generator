@@ -1,21 +1,257 @@
 import Groq from 'groq-sdk';
+import { db } from '@/prisma/db';
 import { sanitizeHtml } from '@/lib/utils/content';
 import { getTopicImage } from '@/lib/services/image';
 
+export interface GroqModelInfo {
+  id: string;
+  name: string;
+  owned_by: string;
+  context_window: number;
+  max_completion_tokens?: number;
+  isChatModel: boolean;
+  isRecommended: boolean;
+  active: boolean;
+  supported_features?: string[];
+}
+
+export const FALLBACK_GROQ_MODELS: GroqModelInfo[] = [
+  {
+    id: 'openai/gpt-oss-120b',
+    name: 'GPT OSS 120B',
+    owned_by: 'OpenAI',
+    context_window: 131072,
+    max_completion_tokens: 65536,
+    isChatModel: true,
+    isRecommended: true,
+    active: true,
+    supported_features: ['tools', 'json_mode', 'structured_outputs', 'reasoning']
+  },
+  {
+    id: 'openai/gpt-oss-20b',
+    name: 'GPT OSS 20B',
+    owned_by: 'OpenAI',
+    context_window: 131072,
+    max_completion_tokens: 65536,
+    isChatModel: true,
+    isRecommended: true,
+    active: true,
+    supported_features: ['tools', 'json_mode', 'structured_outputs', 'reasoning']
+  },
+  {
+    id: 'qwen/qwen3.8-27b',
+    name: 'Qwen 3.8 27B',
+    owned_by: 'Alibaba Cloud',
+    context_window: 131042,
+    max_completion_tokens: 16384,
+    isChatModel: true,
+    isRecommended: true,
+    active: true,
+    supported_features: ['tools', 'json_mode', 'reasoning']
+  },
+  {
+    id: 'allam-2-7b',
+    name: 'ALLaM 2 7B',
+    owned_by: 'SDAIA',
+    context_window: 4096,
+    max_completion_tokens: 4096,
+    isChatModel: true,
+    isRecommended: false,
+    active: true,
+    supported_features: ['json_mode']
+  }
+];
+
 // We wrap initialization to avoid breaking Next.js build step when GROQ_API_KEY is not set.
 // It will throw when actually executed if the key is missing in production.
-const getGroqClient = () => {
+export const getGroqClient = () => {
   return new Groq({
     apiKey: process.env.GROQ_API_KEY || 'dummy-key-for-build',
+    dangerouslyAllowBrowser: true,
   });
 };
+
+/**
+ * Fetches all available models directly from the Groq API and annotates capabilities.
+ */
+export async function listAvailableGroqModels(): Promise<GroqModelInfo[]> {
+  try {
+    const groq = getGroqClient();
+    const response = await groq.models.list();
+    if (!response?.data || !Array.isArray(response.data)) {
+      return FALLBACK_GROQ_MODELS;
+    }
+
+    const models: GroqModelInfo[] = response.data.map((m: any) => {
+      const outputModalities: string[] = m.output_modalities || [];
+      const hasSpeechOrTranscription = outputModalities.includes('speech') || outputModalities.includes('transcription');
+      const lowerId = (m.id || '').toLowerCase();
+      const isGuardOrWhisper =
+        lowerId.includes('prompt-guard') ||
+        lowerId.includes('safeguard') ||
+        lowerId.includes('whisper');
+
+      const isChatModel =
+        m.active !== false &&
+        !hasSpeechOrTranscription &&
+        !isGuardOrWhisper &&
+        (outputModalities.length === 0 || outputModalities.includes('text')) &&
+        (m.context_window || 0) >= 2048;
+
+      const isRecommended =
+        isChatModel &&
+        (m.context_window || 0) >= 8192 &&
+        (lowerId.includes('gpt-oss') || lowerId.includes('qwen'));
+
+      return {
+        id: m.id,
+        name: m.name || m.id,
+        owned_by: m.owned_by || 'Groq',
+        context_window: m.context_window || 4096,
+        max_completion_tokens: m.max_completion_tokens || 4096,
+        isChatModel,
+        isRecommended,
+        active: m.active !== false,
+        supported_features: m.supported_features || []
+      };
+    });
+
+    // Sort: Recommended first, then chat models, then others
+    models.sort((a, b) => {
+      if (a.isRecommended && !b.isRecommended) return -1;
+      if (!a.isRecommended && b.isRecommended) return 1;
+      if (a.isChatModel && !b.isChatModel) return -1;
+      if (!a.isChatModel && b.isChatModel) return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    return models;
+  } catch (error) {
+    console.error('Error fetching Groq models from API, using fallback:', error);
+    return FALLBACK_GROQ_MODELS;
+  }
+}
+
+/**
+ * Retrieves the currently active selected Groq models list from the Config table.
+ */
+export async function getSelectedGroqModels(): Promise<string[]> {
+  try {
+    const config = await db.orm.public.Config.where({ key: 'SELECTED_GROQ_MODELS' }).first();
+    if (config?.value) {
+      const parsed = JSON.parse(config.value);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+      }
+    }
+  } catch (error) {
+    console.error('Error reading SELECTED_GROQ_MODELS from db:', error);
+  }
+  return [process.env.GROQ_MODEL || 'openai/gpt-oss-120b'];
+}
+
+/**
+ * Saves the selected Groq models list to the database Config table.
+ */
+export async function setSelectedGroqModels(models: string[]): Promise<void> {
+  const cleanModels = models.filter(m => typeof m === 'string' && m.trim().length > 0);
+  if (cleanModels.length === 0) {
+    throw new Error('At least one model must be selected.');
+  }
+
+  const serialized = JSON.stringify(cleanModels);
+  const existing = await db.orm.public.Config.where({ key: 'SELECTED_GROQ_MODELS' }).first();
+  if (existing) {
+    await db.orm.public.Config.where({ key: 'SELECTED_GROQ_MODELS' }).update({ value: serialized });
+  } else {
+    await db.orm.public.Config.create({ key: 'SELECTED_GROQ_MODELS', value: serialized });
+  }
+
+  // Ensure current rotation index is within bounds
+  const rotationIndexConfig = await db.orm.public.Config.where({ key: 'GROQ_MODEL_ROTATION_INDEX' }).first();
+  if (rotationIndexConfig) {
+    const idx = parseInt(rotationIndexConfig.value, 10);
+    if (isNaN(idx) || idx >= cleanModels.length) {
+      await db.orm.public.Config.where({ key: 'GROQ_MODEL_ROTATION_INDEX' }).update({ value: '0' });
+    }
+  }
+}
+
+/**
+ * Atomically advances the rotation index and returns the next model to use.
+ */
+export async function getNextGroqModel(): Promise<{
+  model: string;
+  index: number;
+  total: number;
+  nextModel: string;
+}> {
+  const selectedModels = await getSelectedGroqModels();
+  if (selectedModels.length === 0) {
+    const fallback = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+    return { model: fallback, index: 0, total: 1, nextModel: fallback };
+  }
+
+  if (selectedModels.length === 1) {
+    return {
+      model: selectedModels[0],
+      index: 0,
+      total: 1,
+      nextModel: selectedModels[0]
+    };
+  }
+
+  try {
+    const rotationConfig = await db.orm.public.Config.where({ key: 'GROQ_MODEL_ROTATION_INDEX' }).first();
+    const rawIndex = parseInt(rotationConfig?.value || '0', 10);
+    const currentIndex = (isNaN(rawIndex) || rawIndex < 0 ? 0 : rawIndex) % selectedModels.length;
+
+    const chosenModel = selectedModels[currentIndex];
+    const nextIndex = (currentIndex + 1) % selectedModels.length;
+    const nextModel = selectedModels[nextIndex];
+
+    if (rotationConfig) {
+      await db.orm.public.Config.where({ key: 'GROQ_MODEL_ROTATION_INDEX' }).update({ value: nextIndex.toString() });
+    } else {
+      await db.orm.public.Config.create({ key: 'GROQ_MODEL_ROTATION_INDEX', value: nextIndex.toString() });
+    }
+
+    return {
+      model: chosenModel,
+      index: currentIndex,
+      total: selectedModels.length,
+      nextModel
+    };
+  } catch (error) {
+    console.error('Error resolving next Groq model in rotation:', error);
+    return {
+      model: selectedModels[0],
+      index: 0,
+      total: selectedModels.length,
+      nextModel: selectedModels[1] || selectedModels[0]
+    };
+  }
+}
 
 export async function generateContent(
   topic: string,
   type: 'trend' | 'niche',
-  usedImages?: Set<string>
-): Promise<{ title: string; content: string; slug: string; category: string }> {
+  usedImages?: Set<string>,
+  modelOverride?: string
+): Promise<{ title: string; content: string; slug: string; category: string; modelUsed: string }> {
   const groq = getGroqClient();
+
+  // Resolve model to use from rotation or override
+  let model = modelOverride;
+  let rotationInfo: { index: number; total: number } | null = null;
+  if (!model) {
+    const rotation = await getNextGroqModel();
+    model = rotation.model;
+    rotationInfo = { index: rotation.index, total: rotation.total };
+  }
+
+  console.log(`[Groq] Generating ${type} article "${topic}" using model: ${model}${rotationInfo ? ` (Rotation ${rotationInfo.index + 1}/${rotationInfo.total})` : ''}`);
+
   try {
     // Resolve authentic, high-quality, guaranteed UNIQUE header image
     const headerImageUrl = await getTopicImage(topic, type, usedImages);
@@ -64,7 +300,7 @@ export async function generateContent(
           content: prompt
         }
       ],
-      model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
+      model,
       temperature: 0.7,
       max_tokens: 3000,
       response_format: { type: "json_object" }
@@ -72,7 +308,7 @@ export async function generateContent(
 
     const result = chatCompletion.choices[0]?.message?.content;
     if (!result) {
-      throw new Error("No content generated by Groq");
+      throw new Error(`No content generated by Groq model "${model}"`);
     }
 
     const parsedResult = JSON.parse(result);
@@ -85,17 +321,19 @@ export async function generateContent(
       title: parsedResult.title,
       content: sanitizeHtml(parsedResult.content, parsedResult.title, type),
       slug: parsedResult.slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
-      category: assignedCategory
+      category: assignedCategory,
+      modelUsed: model
     };
 
   } catch (error) {
-    console.error('Error generating content with Groq:', error);
+    console.error(`Error generating content with Groq model "${model}":`, error);
     throw error;
   }
 }
 
-export async function brainstormNiches(existingTitles: string[] = []): Promise<string[]> {
+export async function brainstormNiches(existingTitles: string[] = [], modelOverride?: string): Promise<string[]> {
   const groq = getGroqClient();
+  const model = modelOverride || (await getSelectedGroqModels())[0] || process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
   // Diverse UK categories to cycle through and explore
   const UK_CATEGORIES = [
@@ -132,7 +370,7 @@ Make each topic distinctive, informative, and engaging for British readers.${avo
 Every item MUST be a completely distinct subject. Avoid overly basic topics. Output as a JSON object with a "niches" array of 10 strings.`
         }
       ],
-      model: process.env.GROQ_MODEL || "openai/gpt-oss-120b",
+      model,
       temperature: 0.85,
       max_tokens: 600,
       response_format: { type: "json_object" }
@@ -148,3 +386,4 @@ Every item MUST be a completely distinct subject. Avoid overly basic topics. Out
     return [];
   }
 }
+

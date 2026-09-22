@@ -1,5 +1,6 @@
 import { db } from '@/prisma/db';
 import type { Models } from '@/prisma/contract.d';
+import { listAvailableGroqModels, getSelectedGroqModels } from '@/lib/services/groq';
 import AdminDashboardClient from './AdminDashboardClient';
 
 export const dynamic = 'force-dynamic';
@@ -13,6 +14,7 @@ export default async function AdminDashboard() {
   const totalNiches = pages.filter((p: Models.public_Page) => p.type === 'niche').length;
 
   let config = null;
+  let rotationConfig = null;
   if (process.env.DATABASE_URL) {
     config = await db.orm.public.Config.where({ key: 'GENERATION_INTERVAL_MINUTES' }).first();
     if (!config) {
@@ -21,7 +23,16 @@ export default async function AdminDashboard() {
         value: '60'
       });
     }
+
+    rotationConfig = await db.orm.public.Config.where({ key: 'GROQ_MODEL_ROTATION_INDEX' }).first();
   }
+
+  const [availableModels, selectedModels] = await Promise.all([
+    listAvailableGroqModels(),
+    getSelectedGroqModels()
+  ]);
+
+  const initialRotationIndex = parseInt(rotationConfig?.value || '0', 10) || 0;
 
   const plainPages = pages.map((p: Models.public_Page) => ({
     id: p.id,
@@ -38,6 +49,9 @@ export default async function AdminDashboard() {
     <AdminDashboardClient
       initialPages={plainPages}
       initialConfigValue={config?.value || '60'}
+      initialAvailableModels={availableModels}
+      initialSelectedModels={selectedModels}
+      initialRotationIndex={initialRotationIndex}
       stats={{
         totalViews,
         totalRevenue,

@@ -13,9 +13,12 @@ import {
   deleteArticleAction,
   deleteAllArticlesAction,
   categorizeAllArticlesAction,
+  fetchGroqModelsAction,
+  updateSelectedGroqModelsAction,
   ActionResult
 } from './actions';
 import { getCategoryMeta } from '@/lib/services/category';
+import type { GroqModelInfo } from '@/lib/services/groq';
 
 interface PageItem {
   id: string;
@@ -31,6 +34,9 @@ interface PageItem {
 interface AdminDashboardClientProps {
   initialPages: PageItem[];
   initialConfigValue: string;
+  initialAvailableModels?: GroqModelInfo[];
+  initialSelectedModels?: string[];
+  initialRotationIndex?: number;
   stats: {
     totalViews: number;
     totalRevenue: number;
@@ -42,6 +48,9 @@ interface AdminDashboardClientProps {
 export default function AdminDashboardClient({
   initialPages,
   initialConfigValue,
+  initialAvailableModels,
+  initialSelectedModels,
+  initialRotationIndex,
   stats
 }: AdminDashboardClientProps) {
   const router = useRouter();
@@ -59,6 +68,15 @@ export default function AdminDashboardClient({
 
   // Settings state
   const [intervalValue, setIntervalValue] = useState(initialConfigValue);
+
+  // Groq Multi-LLM state
+  const [availableModels, setAvailableModels] = useState<GroqModelInfo[]>(initialAvailableModels || []);
+  const [selectedModels, setSelectedModels] = useState<string[]>(initialSelectedModels || ['openai/gpt-oss-120b']);
+  const [rotationIndex, setRotationIndex] = useState<number>(initialRotationIndex || 0);
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
+  const [isSavingModels, setIsSavingModels] = useState(false);
+  const [modelFilter, setModelFilter] = useState<'recommended' | 'all' | 'selected'>('recommended');
+  const [modelSearch, setModelSearch] = useState('');
 
   // Table filtering & search
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +96,118 @@ export default function AdminDashboardClient({
     confirmLabel: 'Confirm',
     confirmAction: () => {}
   });
+
+  const handleToggleModel = (modelId: string) => {
+    setSelectedModels(prev => {
+      if (prev.includes(modelId)) {
+        if (prev.length <= 1) {
+          setStatus({
+            type: 'error',
+            message: 'You must have at least one LLM active in the rotation sequence.'
+          });
+          return prev;
+        }
+        return prev.filter(m => m !== modelId);
+      } else {
+        return [...prev, modelId];
+      }
+    });
+  };
+
+  const handleMoveModel = (index: number, direction: 'up' | 'down') => {
+    setSelectedModels(prev => {
+      const next = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= next.length) return prev;
+      const temp = next[index];
+      next[index] = next[targetIndex];
+      next[targetIndex] = temp;
+      return next;
+    });
+  };
+
+  const handleSelectPreset = (preset: 'recommended' | 'allChat' | 'reset') => {
+    if (preset === 'recommended') {
+      const rec = availableModels.filter(m => m.isRecommended).map(m => m.id);
+      if (rec.length > 0) {
+        setSelectedModels(rec);
+      }
+    } else if (preset === 'allChat') {
+      const chat = availableModels.filter(m => m.isChatModel).map(m => m.id);
+      if (chat.length > 0) {
+        setSelectedModels(chat);
+      }
+    } else if (preset === 'reset') {
+      setSelectedModels(['openai/gpt-oss-120b']);
+    }
+  };
+
+  const handleRefreshGroqModels = async () => {
+    setIsFetchingModels(true);
+    setStatus({
+      type: 'loading',
+      message: 'Querying Groq API for available models...'
+    });
+
+    try {
+      const res = await fetchGroqModelsAction();
+      if (res.success) {
+        setAvailableModels(res.models);
+        if (res.selectedModels && res.selectedModels.length > 0) {
+          setSelectedModels(res.selectedModels);
+        }
+        setRotationIndex(res.rotationIndex);
+        setStatus({
+          type: 'success',
+          message: `Refreshed models from Groq (${res.models.length} available).`
+        });
+      } else {
+        setStatus({
+          type: 'error',
+          message: res.message || 'Failed to refresh models from Groq.'
+        });
+      }
+    } catch (err: any) {
+      setStatus({
+        type: 'error',
+        message: err?.message || 'Error communicating with Groq API.'
+      });
+    } finally {
+      setIsFetchingModels(false);
+    }
+  };
+
+  const handleSaveSelectedModels = async () => {
+    setIsSavingModels(true);
+    setStatus({
+      type: 'loading',
+      message: 'Saving active LLM rotation configuration...'
+    });
+
+    try {
+      const res = await updateSelectedGroqModelsAction(selectedModels);
+      if (res.success) {
+        setStatus({
+          type: 'success',
+          message: res.message,
+          details: res.details
+        });
+        router.refresh();
+      } else {
+        setStatus({
+          type: 'error',
+          message: res.message
+        });
+      }
+    } catch (err: any) {
+      setStatus({
+        type: 'error',
+        message: err?.message || 'Failed to save model configuration.'
+      });
+    } finally {
+      setIsSavingModels(false);
+    }
+  };
 
   const handleAction = (
     actionId: string,
@@ -151,6 +281,22 @@ export default function AdminDashboardClient({
       }
     });
   };
+
+  // Filtered models for Groq selection panel
+  const filteredGroqModels = availableModels.filter(m => {
+    if (modelFilter === 'recommended' && !m.isRecommended) return false;
+    if (modelFilter === 'selected' && !selectedModels.includes(m.id)) return false;
+
+    if (modelSearch.trim()) {
+      const q = modelSearch.toLowerCase();
+      return (
+        m.name.toLowerCase().includes(q) ||
+        m.id.toLowerCase().includes(q) ||
+        m.owned_by.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
 
   // Filtered pages for table view
   const filteredPages = initialPages
@@ -277,6 +423,269 @@ export default function AdminDashboardClient({
           </p>
         </div>
       </div>
+
+      {/* Groq LLM Selection & Rotation Engine */}
+      <section className="mb-12 p-6 sm:p-8 bg-white dark:bg-gray-800/90 rounded-2xl shadow-xs border border-gray-200/80 dark:border-gray-700/80">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-gray-100 dark:border-gray-700/80">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className="p-2 rounded-xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-lg">🤖</span>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Groq LLM Rotation & Selection</h2>
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300">
+                {selectedModels.length} active in rotation
+              </span>
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Select multiple Groq models to automatically cycle through for article generation. The engine rotates through selected models sequentially on each run.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleRefreshGroqModels}
+              disabled={isFetchingModels || isSavingModels}
+              className="px-3.5 py-2 text-xs font-semibold rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300 transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              title="Query Groq API for live available models"
+            >
+              <span className={isFetchingModels ? "animate-spin" : ""}>🔄</span>
+              <span>{isFetchingModels ? "Refreshing..." : "Refresh Groq Models"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSaveSelectedModels}
+              disabled={isSavingModels || isFetchingModels}
+              className="px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {isSavingModels ? (
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <span>💾</span>
+              )}
+              <span>{isSavingModels ? "Saving..." : "Save Selection"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Rotation Flow Visualizer */}
+        <div className="my-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <span>🔁</span> Active Rotation Sequence
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              Next in queue: <strong className="text-emerald-600 dark:text-emerald-400 font-semibold">{selectedModels[rotationIndex % (selectedModels.length || 1)] || selectedModels[0]}</strong>
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedModels.map((modelId, idx) => {
+              const isNext = (idx === (rotationIndex % selectedModels.length));
+              const modelInfo = availableModels.find(m => m.id === modelId);
+              return (
+                <React.Fragment key={modelId}>
+                  <div
+                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                      isNext
+                        ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs"
+                        : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200"
+                    }`}
+                  >
+                    <span className="w-5 h-5 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-[10px] font-bold">
+                      {idx + 1}
+                    </span>
+                    <span className="font-semibold">{modelInfo?.name || modelId}</span>
+                    {isNext && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-600 text-white">
+                        NEXT
+                      </span>
+                    )}
+                    {selectedModels.length > 1 && (
+                      <div className="flex items-center gap-0.5 ml-1 border-l pl-1 border-gray-200 dark:border-gray-700">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={() => handleMoveModel(idx, 'up')}
+                          className="hover:text-blue-600 disabled:opacity-20 cursor-pointer text-[10px] p-0.5"
+                          title="Move earlier in rotation"
+                        >
+                          ◀
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === selectedModels.length - 1}
+                          onClick={() => handleMoveModel(idx, 'down')}
+                          className="hover:text-blue-600 disabled:opacity-20 cursor-pointer text-[10px] p-0.5"
+                          title="Move later in rotation"
+                        >
+                          ▶
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {idx < selectedModels.length - 1 && (
+                    <span className="text-gray-400 text-xs font-bold">➔</span>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Filter and Presets Bar */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setModelFilter('recommended')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                modelFilter === 'recommended'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              Recommended Text LLMs ({availableModels.filter(m => m.isRecommended).length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setModelFilter('selected')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                modelFilter === 'selected'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              Selected ({selectedModels.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setModelFilter('all')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                modelFilter === 'all'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              All Groq Models ({availableModels.length})
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 sm:w-48">
+              <input
+                type="text"
+                placeholder="Filter models..."
+                value={modelSearch}
+                onChange={e => setModelSearch(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white px-3 py-1.5 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => handleSelectPreset('recommended')}
+                className="px-2.5 py-1.5 text-[11px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors cursor-pointer"
+                title="Select all recommended models"
+              >
+                + Recommended
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSelectPreset('reset')}
+                className="px-2.5 py-1.5 text-[11px] font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700/60 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors cursor-pointer"
+                title="Reset to default single model"
+              >
+                Reset Default
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Model Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
+          {filteredGroqModels.map(model => {
+            const isSelected = selectedModels.includes(model.id);
+            const selectionIndex = selectedModels.indexOf(model.id);
+            const isNext = isSelected && (selectionIndex === (rotationIndex % selectedModels.length));
+
+            return (
+              <div
+                key={model.id}
+                onClick={() => handleToggleModel(model.id)}
+                className={`p-4 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between ${
+                  isSelected
+                    ? 'border-blue-500 bg-blue-50/40 dark:bg-blue-950/20 ring-2 ring-blue-500/20 shadow-xs'
+                    : 'border-gray-200/80 dark:border-gray-700/80 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-xs'
+                }`}
+              >
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {}} // handled by parent div onClick
+                        className="w-4 h-4 text-blue-600 rounded-sm border-gray-300 dark:border-gray-600 focus:ring-blue-500 pointer-events-none"
+                      />
+                      <span className="font-bold text-sm text-gray-900 dark:text-white leading-tight">
+                        {model.name}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {model.isRecommended && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300">
+                          ⭐ Recommended
+                        </span>
+                      )}
+                      {isSelected && (
+                        <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-sm bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-300">
+                          #{selectionIndex + 1}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] font-mono text-gray-500 dark:text-gray-400 mb-2 truncate">
+                    {model.id}
+                  </p>
+
+                  <div className="flex flex-wrap gap-1.5 mb-2.5">
+                    <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                      {model.owned_by}
+                    </span>
+                    <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                      {(model.context_window / 1024).toFixed(0)}k context
+                    </span>
+                    {model.supported_features?.includes('json_mode') && (
+                      <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300">
+                        JSON Mode
+                      </span>
+                    )}
+                    {model.supported_features?.includes('reasoning') && (
+                      <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300">
+                        Reasoning
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-gray-100 dark:border-gray-700/60 flex items-center justify-between text-[11px]">
+                  <span className={isSelected ? "text-blue-700 dark:text-blue-300 font-semibold" : "text-gray-400"}>
+                    {isSelected ? "Active in Rotation" : "Click to Add"}
+                  </span>
+                  {isNext && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                      <span>●</span> Next in Queue
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       {/* Control Actions Panel */}
       <section className="mb-12 p-6 sm:p-8 bg-white dark:bg-gray-800/90 rounded-2xl shadow-xs border border-gray-200/80 dark:border-gray-700/80">

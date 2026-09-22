@@ -31,7 +31,7 @@ function extractUsedImageUrls(pages: { content: string }[]): Set<string> {
 }
 
 export interface GenerationJobResult {
-  generated: { title: string; slug: string; type: 'trend' | 'niche'; category?: string }[];
+  generated: { title: string; slug: string; type: 'trend' | 'niche'; category?: string; modelUsed?: string }[];
   skipped: { title: string; reason: string }[];
   error?: string;
 }
@@ -88,9 +88,15 @@ export async function runContentGenerationJob(): Promise<GenerationJobResult> {
           type: 'trend',
           category: generatedTrend.category
         });
-        console.log(`Saved new trend page: /${generatedTrend.slug} [${generatedTrend.category}]`);
+        console.log(`Saved new trend page: /${generatedTrend.slug} [${generatedTrend.category}] (via ${generatedTrend.modelUsed})`);
         existingTitles.push(generatedTrend.title);
-        result.generated.push({ title: generatedTrend.title, slug: generatedTrend.slug, type: 'trend', category: generatedTrend.category });
+        result.generated.push({
+          title: generatedTrend.title,
+          slug: generatedTrend.slug,
+          type: 'trend',
+          category: generatedTrend.category,
+          modelUsed: generatedTrend.modelUsed
+        });
       } else {
         console.log(`Duplicate detected for trend: "${generatedTrend.title}", skipping insertion.`);
         result.skipped.push({ title: generatedTrend.title, reason: 'Generated slug or topic duplicate' });
@@ -137,8 +143,14 @@ export async function runContentGenerationJob(): Promise<GenerationJobResult> {
           type: 'niche',
           category: generatedNiche.category
         });
-        console.log(`Saved new niche page: /${generatedNiche.slug} [${generatedNiche.category}]`);
-        result.generated.push({ title: generatedNiche.title, slug: generatedNiche.slug, type: 'niche', category: generatedNiche.category });
+        console.log(`Saved new niche page: /${generatedNiche.slug} [${generatedNiche.category}] (via ${generatedNiche.modelUsed})`);
+        result.generated.push({
+          title: generatedNiche.title,
+          slug: generatedNiche.slug,
+          type: 'niche',
+          category: generatedNiche.category,
+          modelUsed: generatedNiche.modelUsed
+        });
       } else {
         console.log(`Duplicate detected for niche: "${generatedNiche.title}", skipping insertion.`);
         result.skipped.push({ title: generatedNiche.title, reason: 'Generated slug or topic duplicate' });

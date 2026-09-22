@@ -5,12 +5,72 @@ import { revalidatePath } from 'next/cache';
 import { runContentGenerationJob } from '@/lib/jobs/runner';
 import { sanitizeHtml } from '@/lib/utils/content';
 import { isTopicSimilar, getTopicImage } from '@/lib/services/image';
+import {
+  listAvailableGroqModels,
+  getSelectedGroqModels,
+  setSelectedGroqModels,
+  GroqModelInfo
+} from '@/lib/services/groq';
 import type { Models } from '@/prisma/contract.d';
 
 export interface ActionResult {
   success: boolean;
   message: string;
   details?: string;
+}
+
+export async function fetchGroqModelsAction(): Promise<{
+  success: boolean;
+  models: GroqModelInfo[];
+  selectedModels: string[];
+  rotationIndex: number;
+  message?: string;
+}> {
+  try {
+    const models = await listAvailableGroqModels();
+    const selectedModels = await getSelectedGroqModels();
+    const rotationConfig = await db.orm.public.Config.where({ key: 'GROQ_MODEL_ROTATION_INDEX' }).first();
+    const rotationIndex = parseInt(rotationConfig?.value || '0', 10) || 0;
+
+    return {
+      success: true,
+      models,
+      selectedModels,
+      rotationIndex
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      models: [],
+      selectedModels: [],
+      rotationIndex: 0,
+      message: error?.message || 'Failed to fetch Groq models'
+    };
+  }
+}
+
+export async function updateSelectedGroqModelsAction(models: string[]): Promise<ActionResult> {
+  if (!Array.isArray(models) || models.length === 0) {
+    return {
+      success: false,
+      message: 'Please select at least one Groq LLM for article generation.'
+    };
+  }
+
+  try {
+    await setSelectedGroqModels(models);
+    revalidatePath('/admin');
+    return {
+      success: true,
+      message: `Active LLM rotation updated successfully! (${models.length} model${models.length === 1 ? '' : 's'} in sequence)`,
+      details: models.join(' ➔ ')
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: `Failed to update LLM selection: ${error?.message || 'Unknown error'}`
+    };
+  }
 }
 
 export async function updateIntervalAction(intervalStr: string): Promise<ActionResult> {
@@ -66,7 +126,7 @@ export async function triggerManualGenerationAction(): Promise<ActionResult> {
       };
     }
 
-    const createdList = result.generated.map(g => `"${g.title}" [${g.type}]`).join(', ');
+    const createdList = result.generated.map(g => `"${g.title}" [${g.type}]${g.modelUsed ? ` via ${g.modelUsed}` : ''}`).join(', ');
     return {
       success: true,
       message: `Successfully generated ${result.generated.length} new article(s)!`,
