@@ -102,10 +102,10 @@ export const CATEGORY_NAMES = CATEGORIES.map(c => c.name);
  * Returns metadata for a category name, falling back to General.
  */
 export function getCategoryMeta(name?: string | null): CategoryMeta {
-  if (!name) return CATEGORIES[CATEGORIES.length - 1]; // General
+  if (!name || typeof name !== 'string') return CATEGORIES[CATEGORIES.length - 1]; // General
   const lower = name.toLowerCase().trim();
   const matched = CATEGORIES.find(
-    c => c.name.toLowerCase() === lower || c.slug === lower || c.id === lower
+    c => (c.name || '').toLowerCase() === lower || c.slug === lower || c.id === lower
   );
   return matched || CATEGORIES[CATEGORIES.length - 1];
 }
@@ -113,8 +113,10 @@ export function getCategoryMeta(name?: string | null): CategoryMeta {
 /**
  * Infers an accurate editorial category for an article based on title and content keywords.
  */
-export function inferArticleCategory(title: string, content: string = ''): string {
-  const text = `${title} ${content.slice(0, 1500)}`.toLowerCase();
+export function inferArticleCategory(title: string = '', content: string = ''): string {
+  const safeTitle = typeof title === 'string' ? title : '';
+  const safeContent = typeof content === 'string' ? content : '';
+  const text = `${safeTitle} ${safeContent.slice(0, 1500)}`.toLowerCase();
 
   // 1. Wildlife & Nature
   if (

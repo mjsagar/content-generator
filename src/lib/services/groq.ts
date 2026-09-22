@@ -62,13 +62,15 @@ export const FALLBACK_GROQ_MODELS: GroqModelInfo[] = [
   }
 ];
 
-// We wrap initialization to avoid breaking Next.js build step when GROQ_API_KEY is not set.
-// It will throw when actually executed if the key is missing in production.
+let groqClientInstance: Groq | null = null;
 export const getGroqClient = () => {
-  return new Groq({
-    apiKey: process.env.GROQ_API_KEY || 'dummy-key-for-build',
-    dangerouslyAllowBrowser: true,
-  });
+  if (!groqClientInstance) {
+    groqClientInstance = new Groq({
+      apiKey: process.env.GROQ_API_KEY || 'dummy-key-for-build',
+      dangerouslyAllowBrowser: true,
+    });
+  }
+  return groqClientInstance;
 };
 
 /**
@@ -312,15 +314,30 @@ export async function generateContent(
     }
 
     const parsedResult = JSON.parse(result);
+    // Unwrap if nested in data, article, content_object, etc.
+    const data = parsedResult.article || parsedResult.data || parsedResult.content_object || parsedResult;
+
+    const rawTitle = data.title || data.Title || data.headline || data.Headline || topic || 'Untitled Article';
+    const title = String(rawTitle).trim();
+    const rawContent = data.content || data.Content || data.body || data.Body || data.article || data.html || '';
+    const content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent);
+
+    const rawSlug = data.slug || data.Slug || title;
+    const slug = String(rawSlug || title || topic)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '') || `article-${Date.now()}`;
+
+    const rawCategory = data.category || data.Category;
     const { inferArticleCategory, CATEGORY_NAMES } = await import('@/lib/services/category');
-    const assignedCategory = CATEGORY_NAMES.includes(parsedResult.category)
-      ? parsedResult.category
-      : inferArticleCategory(parsedResult.title, parsedResult.content);
+    const assignedCategory = (rawCategory && CATEGORY_NAMES.includes(rawCategory))
+      ? rawCategory
+      : inferArticleCategory(title, content);
 
     return {
-      title: parsedResult.title,
-      content: sanitizeHtml(parsedResult.content, parsedResult.title, type),
-      slug: parsedResult.slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+      title,
+      content: sanitizeHtml(content, title, type),
+      slug,
       category: assignedCategory,
       modelUsed: model
     };
@@ -379,8 +396,22 @@ Every item MUST be a completely distinct subject. Avoid overly basic topics. Out
     const result = chatCompletion.choices[0]?.message?.content;
     if (!result) return [];
 
-    const parsed = JSON.parse(result);
-    return parsed.niches || [];
+    let parsed: any;
+    try {
+      parsed = JSON.parse(result);
+    } catch {
+      return [];
+    }
+
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+    }
+
+    const niches = parsed.niches || parsed.Niches || parsed.ideas || parsed.topics || parsed.data || [];
+    if (Array.isArray(niches)) {
+      return niches.filter((item: any): item is string => typeof item === 'string' && item.trim().length > 0);
+    }
+    return [];
   } catch (error) {
     console.error('Error brainstorming niches:', error);
     return [];

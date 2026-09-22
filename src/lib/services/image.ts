@@ -93,10 +93,10 @@ export function getSignificantTokens(text: string): string[] {
  * Checks if two topics are similar or duplicate (prevents multiple articles on same topic).
  */
 export function isTopicSimilar(topicA: string, topicB: string): boolean {
-  if (!topicA || !topicB) return false;
+  if (!topicA || !topicB || typeof topicA !== 'string' || typeof topicB !== 'string') return false;
 
-  const coreA = extractCoreSubject(topicA).toLowerCase();
-  const coreB = extractCoreSubject(topicB).toLowerCase();
+  const coreA = (extractCoreSubject(topicA) || '').toLowerCase();
+  const coreB = (extractCoreSubject(topicB) || '').toLowerCase();
 
   // 1. Direct core subject exact or substring match
   if (coreA && coreB && coreA.length >= 4 && coreB.length >= 4) {

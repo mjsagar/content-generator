@@ -153,4 +153,74 @@ describe('Groq Service & Multi-LLM Rotation', () => {
       expect(rotation.total).toBe(1);
     });
   });
+
+  describe('generateContent & brainstormNiches resilience', () => {
+    it('defensively derives slug from title when slug is undefined in LLM JSON', async () => {
+      const { generateContent, getGroqClient } = await import('./groq');
+      const client = getGroqClient();
+
+      vi.spyOn(client.chat.completions, 'create').mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                title: 'High Tech Wind Farms in Scotland',
+                content: '<p>Scottish wind generation leads the UK.</p>',
+                category: 'Tech & Innovation'
+                // slug intentionally omitted
+              })
+            }
+          }
+        ]
+      } as any);
+
+      const result = await generateContent('Scottish wind farms', 'trend', undefined, 'openai/gpt-oss-120b');
+      expect(result.title).toBe('High Tech Wind Farms in Scotland');
+      expect(result.slug).toBe('high-tech-wind-farms-in-scotland');
+      expect(result.category).toBe('Tech & Innovation');
+    });
+
+    it('handles LLM output wrapped in nested container and uppercase keys', async () => {
+      const { generateContent, getGroqClient } = await import('./groq');
+      const client = getGroqClient();
+
+      vi.spyOn(client.chat.completions, 'create').mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                article: {
+                  Title: 'Ancient Woodlands of Yorkshire',
+                  Content: '<p>Yorkshire ancient forests.</p>',
+                  Slug: 'ancient-yorkshire-woods'
+                }
+              })
+            }
+          }
+        ]
+      } as any);
+
+      const result = await generateContent('Yorkshire woodlands', 'niche', undefined, 'openai/gpt-oss-120b');
+      expect(result.title).toBe('Ancient Woodlands of Yorkshire');
+      expect(result.slug).toBe('ancient-yorkshire-woods');
+    });
+
+    it('handles brainstormNiches returning array directly', async () => {
+      const { brainstormNiches, getGroqClient } = await import('./groq');
+      const client = getGroqClient();
+
+      vi.spyOn(client.chat.completions, 'create').mockResolvedValueOnce({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify(['Topic 1', 'Topic 2', 'Topic 3'])
+            }
+          }
+        ]
+      } as any);
+
+      const niches = await brainstormNiches([]);
+      expect(niches).toEqual(['Topic 1', 'Topic 2', 'Topic 3']);
+    });
+  });
 });
