@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { runContentGenerationJob } from '@/lib/jobs/runner';
+import * as crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,19 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
   }
 
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const expectedHeader = `Bearer ${process.env.CRON_SECRET}`;
+  let isAuthorized = false;
+
+  if (authHeader) {
+    const authBuffer = Buffer.from(authHeader);
+    const expectedBuffer = Buffer.from(expectedHeader);
+
+    if (authBuffer.byteLength === expectedBuffer.byteLength) {
+      isAuthorized = crypto.timingSafeEqual(authBuffer, expectedBuffer);
+    }
+  }
+
+  if (!isAuthorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
