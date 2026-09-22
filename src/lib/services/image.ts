@@ -209,6 +209,209 @@ export function stemWord(word: string): string {
 }
 
 /**
+ * Checks whether an image is strictly free to use (commercial-friendly open license or public domain)
+ * and in an appropriate photographic raster format.
+ */
+export function isImageFreeToUse(
+  url: string,
+  metadata?: { title?: string; license?: string; nonFree?: boolean }
+): boolean {
+  if (!url || typeof url !== 'string') return false;
+  if (metadata?.nonFree) return false;
+  if (metadata?.license && /fair[\s_-]?use/i.test(metadata.license)) return false;
+
+  const lowerUrl = url.toLowerCase();
+
+  // Reject non-image, vector/diagram, or document formats (including .svg thumbnails converted to .png)
+  if (
+    lowerUrl.includes('.svg') ||
+    lowerUrl.includes('.pdf') ||
+    lowerUrl.includes('.gif') ||
+    lowerUrl.includes('.ogg') ||
+    lowerUrl.includes('.ogv') ||
+    lowerUrl.includes('.webm') ||
+    lowerUrl.includes('.tif') ||
+    lowerUrl.includes('.tiff')
+  ) {
+    return false;
+  }
+
+  // Curated Unsplash images are free for commercial and non-commercial use under the Unsplash License
+  if (lowerUrl.includes('images.unsplash.com')) {
+    return true;
+  }
+
+  // Reject local English Wikipedia non-free/fair-use uploads
+  if (lowerUrl.includes('/wikipedia/en/')) {
+    return false;
+  }
+
+  // Wikimedia Commons is strictly dedicated to freely licensed public media (CC-BY, CC-BY-SA, CC0, PD)
+  if (
+    lowerUrl.includes('upload.wikimedia.org/wikipedia/commons') ||
+    lowerUrl.includes('thumb.wikimedia.org/wikipedia/commons')
+  ) {
+    const combined = `${metadata?.title || ''} ${url}`.toLowerCase();
+    if (
+      combined.includes('non-free') ||
+      combined.includes('fair_use') ||
+      combined.includes('fair-use') ||
+      combined.includes('copyrighted_')
+    ) {
+      return false;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+export interface ImageCandidate {
+  url: string;
+  title?: string;
+  term: string;
+  source: 'wikipedia' | 'commons';
+  width?: number;
+  height?: number;
+  extract?: string;
+  assessment?: string;
+  index?: number;
+}
+
+export const HIGH_RELEVANCE_THRESHOLD = 60;
+
+/**
+ * Calculates a multi-factor relevance score (0 - 100) for a candidate image.
+ * Evaluates semantic match, entity precision, aspect ratio, resolution, and Commons quality.
+ */
+export function scoreImageCandidate(
+  candidate: ImageCandidate,
+  topicOrTitle: string,
+  usedImages?: Set<string>
+): number {
+  if (!candidate || !candidate.url) return 0;
+
+  // 1. Gate: Must be free to use
+  if (!isImageFreeToUse(candidate.url, { title: candidate.title })) {
+    return 0;
+  }
+
+  // 2. Gate: Must be unique / unused
+  if (usedImages && usedImages.has(candidate.url)) {
+    return 0;
+  }
+
+  const candTitle = (candidate.title || '').replace(/^File:/i, '').replace(/\.[a-z0-9]+$/i, '');
+  const cleanTitle = candTitle.replace(/_/g, ' ');
+  const lowerCandTitle = cleanTitle.toLowerCase();
+  const lowerTopic = (topicOrTitle || '').toLowerCase();
+  const lowerTerm = candidate.term.toLowerCase();
+
+  // 3. Gate: Must pass basic relevance check (rejects completely unrelated biographies/towns/disambiguation)
+  if (!isPageRelevant(cleanTitle, candidate.term, topicOrTitle)) {
+    return 0;
+  }
+
+  let score = 0;
+
+  // 4. Entity & Subject Match (up to 45 points)
+  const termTokens = getSignificantTokens(candidate.term).map(stemWord);
+  const candTokens = getSignificantTokens(cleanTitle).map(stemWord);
+  const topicTokens = getSignificantTokens(topicOrTitle).map(stemWord);
+
+  const candSet = new Set(candTokens);
+  const matchingTermTokens = termTokens.filter(t => candSet.has(t));
+  const matchingTopicTokens = topicTokens.filter(t => candSet.has(t));
+
+  // Exact phrase match of search term in candidate title
+  if (lowerCandTitle === lowerTerm) {
+    score += 40;
+    // Primary Wikipedia lead article image is highly authoritative
+    if (candidate.source === 'wikipedia') {
+      score += 15;
+    }
+  } else if (lowerCandTitle.includes(lowerTerm) || lowerTerm.includes(lowerCandTitle)) {
+    score += 30;
+  } else if (matchingTermTokens.length > 0) {
+    score += Math.min(25, (matchingTermTokens.length / Math.max(1, termTokens.length)) * 25);
+  }
+
+  // Additional topic token overlap
+  if (matchingTopicTokens.length >= 2) {
+    score += 10;
+  }
+
+  // Disqualify synthetic, impersonator, statue, caricature, or monument representations
+  const unwantedModifiers = [
+    'statue', 'monument', 'bust', 'memorial', 'wax', 'caricature', 'tombstone',
+    'grave', 'impersonator', 'impersonators', 'lookalike', 'look-alike', 'tribute',
+    'parody', 'puppet', 'cosplay', 'costume', 'doll', 'action figure', 'mannequin',
+    'drawing', 'cartoon', 'illustration'
+  ];
+  for (const mod of unwantedModifiers) {
+    if (lowerCandTitle.includes(mod) && !lowerTopic.includes(mod)) {
+      return 0;
+    }
+  }
+
+  // 5. Visual Suitability & Aspect Ratio (up to 30 points)
+  const width = candidate.width;
+  const height = candidate.height;
+
+  if (width && height && width > 0 && height > 0) {
+    const aspectRatio = width / height;
+
+    // Header preference: landscape/horizontal orientation (1.25 to 2.2)
+    if (aspectRatio >= 1.25 && aspectRatio <= 2.2) {
+      score += 20;
+    } else if (aspectRatio >= 0.9 && aspectRatio < 1.25) {
+      score += 10; // Square or mild portrait is acceptable
+    } else if (aspectRatio < 0.75) {
+      score -= 15; // Extreme vertical portrait crops heads in article hero
+    } else if (aspectRatio > 2.6) {
+      score -= 10; // Extreme thin banner
+    }
+
+    // High resolution bonus
+    if (width >= 1200) {
+      score += 10;
+    } else if (width >= 800) {
+      score += 5;
+    } else if (width < 400) {
+      score -= 20;
+    }
+  } else {
+    // Neutral score if dimensions unavailable
+    score += 10;
+  }
+
+  // 6. Source & Search Quality Ranking (up to 15 points)
+  if (candidate.assessment === 'featured' || candidate.assessment === 'quality') {
+    score += 15;
+  } else if (candidate.index !== undefined) {
+    if (candidate.index === 1) score += 10;
+    else if (candidate.index === 2) score += 6;
+    else if (candidate.index === 3) score += 3;
+  } else {
+    score += 5;
+  }
+
+  // 7. Context / Extract Match (up to 10 points)
+  if (candidate.extract) {
+    const extractTokens = getSignificantTokens(candidate.extract).map(stemWord);
+    const extractSet = new Set(extractTokens);
+    const extractTopicMatches = topicTokens.filter(t => extractSet.has(t));
+    if (extractTopicMatches.length >= 3) {
+      score += 10;
+    } else if (extractTopicMatches.length >= 1) {
+      score += 5;
+    }
+  }
+
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+/**
  * Checks if a Wikipedia page title is genuinely relevant to the search query and article topic.
  * Rejects unrelated pages (e.g. Henry David Thoreau for beavers, Nikolai Yezhov for hedgehogs).
  */
@@ -316,8 +519,9 @@ export function extractCandidateSearchTerms(title: string): string[] {
 }
 
 /**
- * Fetches an authentic, unstretched, verified RELEVANT, and guaranteed UNIQUE image for a given topic.
- * Queries Wikimedia Commons API, sorting by relevance index and enforcing topical match against the page title.
+ * Fetches an authentic, unstretched, verified RELEVANT, and strictly FREE-TO-USE image for a given topic.
+ * Evaluates candidates from Wikipedia and Wikimedia Commons, scoring them for high relevance (threshold >= 60).
+ * Falls back to curated, royalty-free category Unsplash imagery if no candidate satisfies high relevance.
  */
 export async function getTopicImage(
   topicOrTitle: string,
@@ -325,60 +529,115 @@ export async function getTopicImage(
   usedImages?: Set<string>
 ): Promise<string> {
   const searchTerms = extractCandidateSearchTerms(topicOrTitle);
+  const candidatePool: { candidate: ImageCandidate; score: number }[] = [];
 
-  const fetchImageForTerm = async (term: string): Promise<string> => {
+  const fetchCandidatesForTerm = async (term: string): Promise<void> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    // Request search results to find a unique, relevant, unused image
-    const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrlimit=10&pithumbsize=1200`;
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'ContentHubImageBot/2.0 (info@theinformationhub.uk)'
-      },
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
+    try {
+      // 1. Query Wikipedia search with pageimages & text extracts
+      const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages|extracts&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrlimit=8&pithumbsize=1200&exintro=1&explaintext=1`;
+      const res = await fetch(wikiUrl, {
+        headers: {
+          'User-Agent': 'ContentHubImageBot/2.0 (info@theinformationhub.uk)'
+        },
+        signal: controller.signal
+      });
 
-    if (!res.ok) throw new Error(`Fetch failed for term: ${term}`);
+      if (res.ok) {
+        const data = await res.json();
+        const pages = data?.query?.pages;
+        if (pages) {
+          for (const page of Object.values(pages) as any[]) {
+            const thumbUrl = page?.thumbnail?.source;
+            if (!thumbUrl || typeof thumbUrl !== 'string') continue;
 
-    const data = await res.json();
-    const pages = data?.query?.pages;
-    if (pages) {
-      // Sort pages by Wikipedia's relevance index
-      const sortedPages = Object.values(pages).sort((a: any, b: any) => (a.index || 999) - (b.index || 999));
+            const candidate: ImageCandidate = {
+              url: thumbUrl,
+              title: page.title,
+              term,
+              source: 'wikipedia',
+              width: page?.thumbnail?.width,
+              height: page?.thumbnail?.height,
+              extract: page?.extract,
+              index: page?.index
+            };
 
-      for (const page of sortedPages as any[]) {
-        const thumb = page?.thumbnail?.source;
-        const pageTitle = page?.title;
-        if (!thumb || typeof thumb !== 'string') continue;
-
-        // Verify relevance: ensure the Wikipedia page actually matches the topic/term
-        if (!isPageRelevant(pageTitle, term, topicOrTitle)) {
-          continue;
+            const score = scoreImageCandidate(candidate, topicOrTitle, usedImages);
+            if (score > 0) {
+              candidatePool.push({ candidate, score });
+            }
+          }
         }
-
-        // Check if this image was already used on another article
-        if (usedImages && usedImages.has(thumb)) {
-          continue;
-        }
-
-        return thumb;
       }
+
+      // 2. Query Wikimedia Commons directly for high-resolution free photographs (namespace 6)
+      const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&format=json&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrnamespace=6&gsrlimit=6&prop=imageinfo&iiprop=url|size|extmetadata&iiurlwidth=1200`;
+      const commonsRes = await fetch(commonsUrl, {
+        headers: {
+          'User-Agent': 'ContentHubImageBot/2.0 (info@theinformationhub.uk)'
+        },
+        signal: controller.signal
+      });
+
+      if (commonsRes.ok) {
+        const commonsData = await commonsRes.json();
+        const commonsPages = commonsData?.query?.pages;
+        if (commonsPages) {
+          for (const page of Object.values(commonsPages) as any[]) {
+            const info = page?.imageinfo?.[0];
+            const thumbUrl = info?.thumburl || info?.url;
+            if (!thumbUrl || typeof thumbUrl !== 'string') continue;
+
+            const candidate: ImageCandidate = {
+              url: thumbUrl,
+              title: page.title,
+              term,
+              source: 'commons',
+              width: info?.thumbwidth || info?.width,
+              height: info?.thumbheight || info?.height,
+              assessment: info?.extmetadata?.Assessments?.value,
+              index: page?.index
+            };
+
+            const score = scoreImageCandidate(candidate, topicOrTitle, usedImages);
+            if (score > 0) {
+              candidatePool.push({ candidate, score });
+            }
+          }
+        }
+      }
+    } finally {
+      clearTimeout(timeoutId);
     }
-    throw new Error(`No relevant unused image found for term: ${term}`);
   };
 
   // Evaluate candidate search terms in priority order
   for (const term of searchTerms) {
     try {
-      const img = await fetchImageForTerm(term);
-      if (img) return img;
+      await fetchCandidatesForTerm(term);
+      // If we found a candidate with high relevance (>= HIGH_RELEVANCE_THRESHOLD), we can pick the best
+      const topMatches = candidatePool
+        .filter(c => c.score >= HIGH_RELEVANCE_THRESHOLD)
+        .sort((a, b) => b.score - a.score);
+
+      if (topMatches.length > 0) {
+        return topMatches[0].candidate.url;
+      }
     } catch {
-      // Try next candidate term
+      // Continue to next search term if request timed out or failed
     }
   }
 
-  // Fallback to a guaranteed unused category image if all search terms fail
+  // If any candidates were found above 50, pick the best one
+  if (candidatePool.length > 0) {
+    candidatePool.sort((a, b) => b.score - a.score);
+    if (candidatePool[0].score >= 50) {
+      return candidatePool[0].candidate.url;
+    }
+  }
+
+  // Fallback to a guaranteed unused, royalty-free category image if no candidate reached high relevance
   return getTopicFallbackImage(topicOrTitle, type, usedImages);
 }

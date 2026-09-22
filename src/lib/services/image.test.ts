@@ -182,4 +182,133 @@ describe('extractCandidateSearchTerms', () => {
   });
 });
 
+describe('isImageFreeToUse', () => {
+  it('should accept valid Wikimedia Commons photograph URLs', async () => {
+    const { isImageFreeToUse } = await import('./image');
+    const commonsUrl = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Eurasian_beaver.jpg/1280px-Eurasian_beaver.jpg';
+    expect(isImageFreeToUse(commonsUrl)).toBe(true);
+  });
 
+  it('should accept Unsplash photo URLs', async () => {
+    const { isImageFreeToUse } = await import('./image');
+    const unsplashUrl = 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=1200&h=675&q=80';
+    expect(isImageFreeToUse(unsplashUrl)).toBe(true);
+  });
+
+  it('should reject local English Wikipedia non-free/fair-use uploads', async () => {
+    const { isImageFreeToUse } = await import('./image');
+    const fairUseUrl = 'https://upload.wikimedia.org/wikipedia/en/thumb/3/3b/Promotional_poster.jpg/800px-Promotional_poster.jpg';
+    expect(isImageFreeToUse(fairUseUrl)).toBe(false);
+  });
+
+  it('should reject vector, diagram, or document formats like .svg and .pdf', async () => {
+    const { isImageFreeToUse } = await import('./image');
+    const svgUrl = 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Diagram_icon.svg/500px-Diagram_icon.svg.png';
+    const rawSvg = 'https://upload.wikimedia.org/wikipedia/commons/1/1a/Flag.svg';
+    const pdfUrl = 'https://upload.wikimedia.org/wikipedia/commons/3/3a/Document.pdf';
+    expect(isImageFreeToUse(svgUrl)).toBe(false);
+    expect(isImageFreeToUse(rawSvg)).toBe(false);
+    expect(isImageFreeToUse(pdfUrl)).toBe(false);
+  });
+
+  it('should reject images with explicit non-free or fair-use metadata', async () => {
+    const { isImageFreeToUse } = await import('./image');
+    const commonsUrl = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Book_cover.jpg/1280px-Book_cover.jpg';
+    expect(isImageFreeToUse(commonsUrl, { nonFree: true })).toBe(false);
+    expect(isImageFreeToUse(commonsUrl, { license: 'Fair use' })).toBe(false);
+  });
+});
+
+describe('scoreImageCandidate', () => {
+  const topic = 'Rewilding the UK’s Forgotten River Valleys: The Return of Beavers and Their Ecosystem Impact';
+
+  it('should award a high score (>= 60) to a landscape, high-res authentic beaver image', async () => {
+    const { scoreImageCandidate, HIGH_RELEVANCE_THRESHOLD } = await import('./image');
+    const candidate = {
+      url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Eurasian_beaver.jpg/1280px-Eurasian_beaver.jpg',
+      title: 'Eurasian beaver',
+      term: 'Eurasian beaver',
+      source: 'commons' as const,
+      width: 1200,
+      height: 800,
+      assessment: 'quality'
+    };
+
+    const score = scoreImageCandidate(candidate, topic);
+    expect(score).toBeGreaterThanOrEqual(HIGH_RELEVANCE_THRESHOLD);
+  });
+
+  it('should return 0 for an image that is already in usedImages', async () => {
+    const { scoreImageCandidate } = await import('./image');
+    const used = new Set(['https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Eurasian_beaver.jpg/1280px-Eurasian_beaver.jpg']);
+    const candidate = {
+      url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/Eurasian_beaver.jpg/1280px-Eurasian_beaver.jpg',
+      title: 'Eurasian beaver',
+      term: 'Eurasian beaver',
+      source: 'commons' as const,
+      width: 1200,
+      height: 800
+    };
+
+    const score = scoreImageCandidate(candidate, topic, used);
+    expect(score).toBe(0);
+  });
+
+  it('should return 0 for an unfree image', async () => {
+    const { scoreImageCandidate } = await import('./image');
+    const candidate = {
+      url: 'https://upload.wikimedia.org/wikipedia/en/thumb/6/65/Fair_use_beaver.jpg/800px-Fair_use_beaver.jpg',
+      title: 'Eurasian beaver',
+      term: 'Eurasian beaver',
+      source: 'wikipedia' as const,
+      width: 1200,
+      height: 800
+    };
+
+    const score = scoreImageCandidate(candidate, topic);
+    expect(score).toBe(0);
+  });
+
+  it('should penalize or reject unwanted modifiers like statues or monuments', async () => {
+    const { scoreImageCandidate } = await import('./image');
+    const normalCandidate = {
+      url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/16/Donald_Trump.jpg/1200px-Donald_Trump.jpg',
+      title: 'Donald Trump',
+      term: 'Donald Trump',
+      source: 'wikipedia' as const,
+      width: 1200,
+      height: 800
+    };
+
+    const statueCandidate = {
+      url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Donald_Trump_wax_statue.jpg/1200px-Donald_Trump_wax_statue.jpg',
+      title: 'Donald Trump wax statue',
+      term: 'Donald Trump',
+      source: 'commons' as const,
+      width: 1200,
+      height: 800
+    };
+
+    const trumpTopic = 'Trump TV: How the Former US President’s Media Empire Is Shaping British Viewership';
+    const normalScore = scoreImageCandidate(normalCandidate, trumpTopic);
+    const statueScore = scoreImageCandidate(statueCandidate, trumpTopic);
+
+    expect(normalScore).toBeGreaterThan(statueScore);
+    expect(statueScore).toBe(0);
+  });
+
+  it('should disqualify impersonators and lookalikes', async () => {
+    const { scoreImageCandidate } = await import('./image');
+    const candidate = {
+      url: 'https://upload.wikimedia.org/wikipedia/commons/1/1c/Kim_Jong-un_and_Donald_Trump_impersonators.jpg',
+      title: 'Kim Jong-un and Donald Trump impersonators',
+      term: 'Donald Trump',
+      source: 'commons' as const,
+      width: 1200,
+      height: 800
+    };
+
+    const score = scoreImageCandidate(candidate, 'Trump TV: How the Former US President’s Media Empire Is Shaping British Viewership');
+    expect(score).toBe(0);
+  });
+});
