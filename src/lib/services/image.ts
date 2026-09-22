@@ -29,9 +29,12 @@ export const CATEGORY_POOLS: Record<string, string[]> = {
     'https://images.unsplash.com/photo-1500463959177-e0869688df97?auto=format&fit=crop&w=1200&h=675&q=80'
   ],
   sports: [
-    'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=1200&h=675&q=80',
     'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1200&h=675&q=80',
     'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&w=1200&h=675&q=80',
+    'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1200&h=675&q=80',
+    'https://images.unsplash.com/photo-1431324155629-1a6deb1dec8d?auto=format&fit=crop&w=1200&h=675&q=80',
+    'https://images.unsplash.com/photo-1489944440615-453fc2b6a9a9?auto=format&fit=crop&w=1200&h=675&q=80',
+    'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=1200&h=675&q=80',
     'https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&w=1200&h=675&q=80'
   ],
   landmark: [
@@ -112,24 +115,14 @@ export function isTopicSimilar(topicA: string, topicB: string): boolean {
 
   const setB = new Set(tokensB);
   const common = tokensA.filter(t => setB.has(t));
+  const minTokens = Math.min(tokensA.length, tokensB.length);
 
-  // If 2 or more significant words match (e.g. "border" + "terrier", "monstera" + "deliciosa")
-  if (common.length >= 2) {
-    return true;
-  }
-
-  // If a single distinctive proper noun/word (>= 6 chars) matches that isn't generic
-  const genericWords = new Set(['health', 'climate', 'london', 'british', 'england', 'scotland', 'wales', 'ireland', 'business']);
-  if (common.some(word => word.length >= 6 && !genericWords.has(word))) {
-    return true;
-  }
-
-  return false;
+  // If >= 60% of significant tokens match between two titles, treat as duplicate
+  return minTokens > 0 && common.length / minTokens >= 0.6;
 }
 
 /**
- * Extracts the core subject from a long SEO title.
- * e.g. "Comerica Park: The Heartbeat of Detroit Baseball..." -> "Comerica Park"
+ * Strips common blog/article prefixes, suffixes and subtitles to isolate the core entity/subject.
  */
 export function extractCoreSubject(title: string): string {
   if (!title) return '';
@@ -152,26 +145,52 @@ export function extractCoreSubject(title: string): string {
 /**
  * Returns a unique fallback image from the category pools that is NOT in usedImages.
  */
-export function getTopicFallbackImage(topic: string, type?: string, usedImages?: Set<string>): string {
+export function getTopicFallbackImage(
+  topic: string,
+  type?: string,
+  usedImages?: Set<string>,
+  category?: string | null
+): string {
   const lower = (topic || '').toLowerCase();
   let poolKey = 'general';
 
-  if (lower.includes('dog') || lower.includes('puppy') || lower.includes('breed') || lower.includes('terrier') || lower.includes('hound') || lower.includes('spaniel')) {
-    poolKey = 'dog';
-  } else if (lower.includes('cat') || lower.includes('kitten')) {
-    poolKey = 'cat';
-  } else if (lower.includes('fish') || lower.includes('axolotl') || lower.includes('pet') || lower.includes('animal') || lower.includes('bird') || lower.includes('wildlife') || lower.includes('beaver') || lower.includes('hedgehog')) {
-    poolKey = 'animal';
-  } else if (lower.includes('football') || lower.includes('baseball') || lower.includes('park') || lower.includes('messi') || lower.includes('stadium') || lower.includes('game') || lower.includes('sport') || lower.includes('swimming')) {
-    poolKey = 'sports';
-  } else if (lower.includes('mansion') || lower.includes('city') || lower.includes('historic') || lower.includes('building') || lower.includes('residence') || lower.includes('castle') || lower.includes('palace') || lower.includes('railway')) {
-    poolKey = 'landmark';
-  } else if (lower.includes('tech') || lower.includes('app') || lower.includes('ai') || lower.includes('software') || lower.includes('digital') || lower.includes('robot') || lower.includes('charger') || lower.includes('charging')) {
-    poolKey = 'tech';
-  } else if (lower.includes('pension') || lower.includes('money') || lower.includes('isa') || lower.includes('finance') || lower.includes('tax') || lower.includes('mortgage')) {
-    poolKey = 'finance';
-  } else if (type === 'niche' || lower.includes('plant') || lower.includes('garden') || lower.includes('nature') || lower.includes('forest') || lower.includes('lake') || lower.includes('river') || lower.includes('rewilding')) {
-    poolKey = 'nature';
+  // 1. Direct Category Mapping if category provided
+  if (category) {
+    const catLower = category.toLowerCase();
+    if (catLower.includes('sport') || catLower.includes('culture')) {
+      poolKey = 'sports';
+    } else if (catLower.includes('finance')) {
+      poolKey = 'finance';
+    } else if (catLower.includes('tech') || catLower.includes('innovation')) {
+      poolKey = 'tech';
+    } else if (catLower.includes('travel') || catLower.includes('heritage')) {
+      poolKey = 'landmark';
+    } else if (catLower.includes('garden')) {
+      poolKey = 'nature';
+    } else if (catLower.includes('wildlife')) {
+      poolKey = 'animal';
+    }
+  }
+
+  // 2. Exact word boundary matching (prevents substrings like 'implications' matching 'cat', or 'Britain' matching 'ai')
+  if (poolKey === 'general') {
+    if (/\b(dog|dogs|puppy|puppies|canine|hound|terrier|spaniel|retriever|bulldog|collie|pooch)\b/i.test(lower)) {
+      poolKey = 'dog';
+    } else if (/\b(cat|cats|kitten|kittens|feline|tabby|siamese|persian)\b/i.test(lower)) {
+      poolKey = 'cat';
+    } else if (/\b(football|soccer|arsenal|chelsea|liverpool|manchester|tottenham|spurs|messi|ronaldo|premier league|champions league|uefa|fifa|baseball|basketball|cricket|rugby|tennis|stadium|olympics|f1|formula 1|racing|swimming|derby|fixture|match|clash|sports|athletic)\b/i.test(lower)) {
+      poolKey = 'sports';
+    } else if (/\b(fish|axolotl|pet|pets|animal|animals|bird|birds|wildlife|beaver|beavers|hedgehog|hedgehogs|mammal|mammals|otter|deer|squirrel)\b/i.test(lower)) {
+      poolKey = 'animal';
+    } else if (/\b(mansion|historic|residence|castle|castles|palace|palaces|cathedral|tower|bridge|monument|heritage|architecture)\b/i.test(lower)) {
+      poolKey = 'landmark';
+    } else if (/\b(tech|technology|technologies|ai|artificial intelligence|app|apps|software|digital|robot|robots|robotics|charger|charging|ev|quantum|algorithm)\b/i.test(lower)) {
+      poolKey = 'tech';
+    } else if (/\b(pension|pensions|money|isa|isas|finance|financial|tax|taxes|taxation|mortgage|mortgages|investing|investment|investments|stocks|shares|crypto|bitcoin|banking|savings|bank)\b/i.test(lower)) {
+      poolKey = 'finance';
+    } else if (type === 'niche' || /\b(plant|plants|garden|gardens|gardening|nature|forest|forests|woodland|woodlands|lake|lakes|river|rivers|mountain|mountains|rewilding|conservation|countryside)\b/i.test(lower)) {
+      poolKey = 'nature';
+    }
   }
 
   const pool = CATEGORY_POOLS[poolKey] || CATEGORY_POOLS.general;
@@ -471,6 +490,8 @@ export function extractCandidateSearchTerms(title: string): string[] {
 
   // 1. High-priority specific entity cues
   if (lower.includes('trump') && !lower.includes('jr')) terms.push('Donald Trump');
+  if (lower.includes('arsenal')) terms.push('Arsenal F.C.', 'Emirates Stadium', 'Arsenal');
+  if (lower.includes('køge') || lower.includes('koge')) terms.push('HB Køge', 'HB Køge (women)');
   if (lower.includes('beaver')) terms.push('Eurasian beaver', 'Beaver in the United Kingdom', 'Beaver');
   if (lower.includes('hedgehog')) terms.push('European hedgehog', 'Hedgehog');
   if (lower.includes('monstera')) terms.push('Monstera deliciosa');
@@ -491,9 +512,30 @@ export function extractCandidateSearchTerms(title: string): string[] {
   if (lower.includes('inside soap')) terms.push('Inside Soap Awards');
   if (lower.includes('lioness')) terms.push('Special Ops: Lioness');
 
-  // 2. Subtitle extraction (e.g. "Topic: Subtopic" -> examine both parts)
+  // 2. Subtitle extraction (e.g. "Topic: Subtopic" -> prioritize main topic over editorial subtitle)
   if (title.includes(':')) {
     const parts = title.split(':').map(s => s.trim());
+    if (parts[0]) {
+      const cleanMain = parts[0]
+        .replace(/^(the|ultimate|inside|how to|guide to)\s+/i, '')
+        .trim();
+      if (cleanMain.length >= 3) {
+        terms.push(cleanMain);
+
+        // Detect match/versus structures (e.g. "Arsenal vs HB Køge" -> extract teams)
+        if (/\b(?:vs\.?|v\.?|versus|against)\b/i.test(cleanMain)) {
+          const matchTeams = cleanMain.split(/\s+(?:vs\.?|v\.?|versus|against)\s+/i).map(t => t.trim());
+          for (const team of matchTeams) {
+            if (team.length >= 3) {
+              terms.push(team);
+              if (!team.toLowerCase().includes('fc') && !team.toLowerCase().includes('f.c.')) {
+                terms.push(`${team} F.C.`);
+              }
+            }
+          }
+        }
+      }
+    }
     if (parts[1]) {
       const cleanSub = parts[1]
         .replace(/^(the|a|an)\s+/i, '')
@@ -501,12 +543,6 @@ export function extractCandidateSearchTerms(title: string): string[] {
         .replace(/\s+(and their ecosystem impact|everything uk viewers need to know|in 2024|in 2025|in 2026).*$/i, '')
         .trim();
       if (cleanSub.length >= 3) terms.push(cleanSub);
-    }
-    if (parts[0]) {
-      const cleanMain = parts[0]
-        .replace(/^(the|ultimate|inside|how to|guide to)\s+/i, '')
-        .trim();
-      if (cleanMain.length >= 3) terms.push(cleanMain);
     }
   }
 
@@ -526,7 +562,8 @@ export function extractCandidateSearchTerms(title: string): string[] {
 export async function getTopicImage(
   topicOrTitle: string,
   type?: string,
-  usedImages?: Set<string>
+  usedImages?: Set<string>,
+  category?: string | null
 ): Promise<string> {
   const searchTerms = extractCandidateSearchTerms(topicOrTitle);
   const candidatePool: { candidate: ImageCandidate; score: number }[] = [];
@@ -639,5 +676,5 @@ export async function getTopicImage(
   }
 
   // Fallback to a guaranteed unused, royalty-free category image if no candidate reached high relevance
-  return getTopicFallbackImage(topicOrTitle, type, usedImages);
+  return getTopicFallbackImage(topicOrTitle, type, usedImages, category);
 }

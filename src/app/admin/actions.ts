@@ -235,7 +235,7 @@ export async function makeImagesUniqueAction(): Promise<ActionResult> {
       const currentImg = imgMatch ? imgMatch[1] : null;
 
       if (!currentImg || seenImages.has(currentImg)) {
-        const freshImage = await getTopicImage(page.title, page.type, seenImages);
+        const freshImage = await getTopicImage(page.title, page.type, seenImages, (page as any).category);
         seenImages.add(freshImage);
 
         let newContent = page.content;
@@ -278,7 +278,7 @@ export async function reResolveAllImagesAction(): Promise<ActionResult> {
     const seenImages = new Set<string>();
 
     for (const page of allPages) {
-      const freshImage = await getTopicImage(page.title, page.type, seenImages);
+      const freshImage = await getTopicImage(page.title, page.type, seenImages, (page as any).category);
       seenImages.add(freshImage);
 
       const imgMatch = page.content.match(/<img[^>]+src="([^">]+)"/);
@@ -317,7 +317,7 @@ export async function refreshArticleImageAction(id: string): Promise<ActionResul
       return { success: false, message: 'Article not found.' };
     }
 
-    const freshImage = await getTopicImage(page.title, page.type);
+    const freshImage = await getTopicImage(page.title, page.type, undefined, (page as any).category);
     const imgMatch = page.content.match(/<img[^>]+src="([^">]+)"/);
     let newContent = page.content;
     if (imgMatch) {

@@ -2,6 +2,7 @@ import Groq from 'groq-sdk';
 import { db } from '@/prisma/db';
 import { sanitizeHtml } from '@/lib/utils/content';
 import { getTopicImage } from '@/lib/services/image';
+import { inferArticleCategory, CATEGORY_NAMES } from '@/lib/services/category';
 
 export interface GroqModelInfo {
   id: string;
@@ -255,8 +256,11 @@ export async function generateContent(
   console.log(`[Groq] Generating ${type} article "${topic}" using model: ${model}${rotationInfo ? ` (Rotation ${rotationInfo.index + 1}/${rotationInfo.total})` : ''}`);
 
   try {
+    // Pre-infer tentative category from topic to assist with domain-accurate image fallback
+    const tentativeCategory = inferArticleCategory(topic);
+
     // Resolve authentic, high-quality, guaranteed UNIQUE header image
-    const headerImageUrl = await getTopicImage(topic, type, usedImages);
+    const headerImageUrl = await getTopicImage(topic, type, usedImages, tentativeCategory);
     if (usedImages) {
       usedImages.add(headerImageUrl);
     }
@@ -329,7 +333,6 @@ export async function generateContent(
       .replace(/(^-|-$)/g, '') || `article-${Date.now()}`;
 
     const rawCategory = data.category || data.Category;
-    const { inferArticleCategory, CATEGORY_NAMES } = await import('@/lib/services/category');
     const assignedCategory = (rawCategory && CATEGORY_NAMES.includes(rawCategory))
       ? rawCategory
       : inferArticleCategory(title, content);

@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     const seenImages = new Set<string>();
     const results = [];
     for (const page of allPages) {
-      const freshImage = await getTopicImage(page.title, page.type, seenImages);
+      const freshImage = await getTopicImage(page.title, page.type, seenImages, (page as any).category);
       seenImages.add(freshImage);
 
       const imgMatch = page.content.match(/<img[^>]+src="([^">]+)"/);

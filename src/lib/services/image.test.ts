@@ -180,6 +180,52 @@ describe('extractCandidateSearchTerms', () => {
     expect(terms).toContain('Donald Trump');
     expect(terms[0]).toBe('Donald Trump');
   });
+
+  it('should extract football clubs and match teams in priority order for versus titles', async () => {
+    const { extractCandidateSearchTerms } = await import('./image');
+    const title = 'Arsenal vs HB Køge: Tactical Clash and Commercial Implications for UK Football';
+    const terms = extractCandidateSearchTerms(title);
+
+    expect(terms).toContain('Arsenal F.C.');
+    expect(terms).toContain('Arsenal');
+    expect(terms).toContain('HB Køge');
+    // Main match entity must come before the editorial subtitle
+    const arsenalIdx = terms.indexOf('Arsenal');
+    const subIdx = terms.indexOf('Tactical Clash and Commercial Implications for UK Football');
+    expect(arsenalIdx).toBeGreaterThanOrEqual(0);
+    expect(subIdx).toBeGreaterThan(arsenalIdx);
+  });
+});
+
+describe('getTopicFallbackImage', () => {
+  it('should select sports image pool for Arsenal vs HB Koge and NEVER return cat image', async () => {
+    const { getTopicFallbackImage, CATEGORY_POOLS } = await import('./image');
+    const title = 'Arsenal vs HB Køge: Tactical Clash and Commercial Implications for UK Football';
+    const fallback = getTopicFallbackImage(title);
+
+    // Must be in the sports pool
+    expect(CATEGORY_POOLS.sports.some(url => fallback.startsWith(url.split('?')[0]))).toBe(true);
+
+    // Must NOT be in the cat pool (preventing 'implications' -> 'cat' bug)
+    expect(CATEGORY_POOLS.cat.some(url => fallback.startsWith(url.split('?')[0]))).toBe(false);
+  });
+
+  it('should not match words like implications or Britain to cat or ai pools', async () => {
+    const { getTopicFallbackImage, CATEGORY_POOLS } = await import('./image');
+    // "implications" should not be cat
+    const impFallback = getTopicFallbackImage('Economic Implications of Inflation');
+    expect(CATEGORY_POOLS.cat.some(url => impFallback.startsWith(url.split('?')[0]))).toBe(false);
+
+    // "Britain" should not match "ai"
+    const britFallback = getTopicFallbackImage('Walking the Coast of Britain');
+    expect(CATEGORY_POOLS.tech.some(url => britFallback.startsWith(url.split('?')[0]))).toBe(false);
+  });
+
+  it('should respect category override when provided', async () => {
+    const { getTopicFallbackImage, CATEGORY_POOLS } = await import('./image');
+    const fallback = getTopicFallbackImage('Generic match title', undefined, undefined, 'Sports & Culture');
+    expect(CATEGORY_POOLS.sports.some(url => fallback.startsWith(url.split('?')[0]))).toBe(true);
+  });
 });
 
 describe('isImageFreeToUse', () => {

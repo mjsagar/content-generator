@@ -185,7 +185,24 @@ export function inferArticleCategory(title: string = '', content: string = ''): 
     text.includes('premier league') ||
     text.includes('ballpark') ||
     text.includes('stadium') ||
+    text.includes('arsenal') ||
+    text.includes('chelsea') ||
+    text.includes('liverpool') ||
+    text.includes('tottenham') ||
+    text.includes('manchester') ||
+    text.includes('soccer') ||
+    text.includes('champions league') ||
+    text.includes('uefa') ||
+    text.includes('fifa') ||
+    text.includes('køge') ||
+    text.includes('koge') ||
+    text.includes('derby') ||
+    text.includes('tactical clash') ||
+    text.includes('cricket') ||
+    text.includes('rugby') ||
+    text.includes('tennis') ||
     text.includes('messi') ||
+    text.includes('ronaldo') ||
     text.includes('bruce willis') ||
     text.includes('alexis bledel') ||
     text.includes('russell t davies') ||
