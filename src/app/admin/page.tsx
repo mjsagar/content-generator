@@ -61,20 +61,26 @@ export default async function AdminDashboard() {
     const allPages = await db.orm.public.Page.all();
 
     const keptPages: any[] = [];
+    const idsToDelete: string[] = [];
+
     for (const page of allPages) {
       const duplicateIndex = keptPages.findIndex(k => isTopicSimilar(page.title, k.title));
       if (duplicateIndex !== -1) {
         const existing = keptPages[duplicateIndex];
         // Keep the one with more views or older creation
         if (page.views > existing.views) {
-          await db.orm.public.Page.where({ id: existing.id }).delete();
+          idsToDelete.push(existing.id);
           keptPages[duplicateIndex] = page;
         } else {
-          await db.orm.public.Page.where({ id: page.id }).delete();
+          idsToDelete.push(page.id);
         }
       } else {
         keptPages.push(page);
       }
+    }
+
+    if (idsToDelete.length > 0) {
+      await db.orm.public.Page.where(p => p.id.in(idsToDelete)).delete();
     }
     revalidatePath('/admin');
     revalidatePath('/');
