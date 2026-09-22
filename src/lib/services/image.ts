@@ -206,45 +206,46 @@ export async function getTopicImage(
   usedImages?: Set<string>
 ): Promise<string> {
   const subject = extractCoreSubject(topicOrTitle);
-  const searchTerms = [subject, topicOrTitle].filter(Boolean);
+  const searchTerms = Array.from(new Set([subject, topicOrTitle].filter(Boolean)));
 
-  for (const term of searchTerms) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+  const fetchImageForTerm = async (term: string) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-      // Request 10 search results to find a unique, unused image
-      const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrlimit=10&pithumbsize=1200`;
-      const res = await fetch(url, {
-        headers: {
-          'User-Agent': 'ContentHubImageBot/2.0 (info@theinformationhub.uk)'
-        },
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
+    // Request 10 search results to find a unique, unused image
+    const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrlimit=10&pithumbsize=1200`;
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'ContentHubImageBot/2.0 (info@theinformationhub.uk)'
+      },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
 
-      if (!res.ok) continue;
+    if (!res.ok) throw new Error(`Fetch failed for term: ${term}`);
 
-      const data = await res.json();
-      const pages = data?.query?.pages;
-      if (pages) {
-        // Iterate through all returned Wikipedia pages to find one with an unused image
-        for (const pageId of Object.keys(pages)) {
-          const thumb = pages[pageId]?.thumbnail?.source;
-          if (thumb && typeof thumb === 'string') {
-            // Check if this image was already used on another article
-            if (usedImages && usedImages.has(thumb)) {
-              continue; // Skip duplicate image!
-            }
-            return thumb;
+    const data = await res.json();
+    const pages = data?.query?.pages;
+    if (pages) {
+      // Iterate through all returned Wikipedia pages to find one with an unused image
+      for (const pageId of Object.keys(pages)) {
+        const thumb = pages[pageId]?.thumbnail?.source;
+        if (thumb && typeof thumb === 'string') {
+          // Check if this image was already used on another article
+          if (usedImages && usedImages.has(thumb)) {
+            continue; // Skip duplicate image!
           }
+          return thumb;
         }
       }
-    } catch {
-      // Continue to next search term or fallback
     }
-  }
+    throw new Error(`No unused image found for term: ${term}`);
+  };
 
-  // Fallback to a guaranteed unused category image
-  return getTopicFallbackImage(topicOrTitle, type, usedImages);
+  try {
+    return await Promise.any(searchTerms.map(fetchImageForTerm));
+  } catch {
+    // Fallback to a guaranteed unused category image if all search terms fail
+    return getTopicFallbackImage(topicOrTitle, type, usedImages);
+  }
 }
