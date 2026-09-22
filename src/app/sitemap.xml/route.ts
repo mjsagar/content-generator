@@ -1,5 +1,6 @@
 import { db } from '@/prisma/db';
 import { NextResponse } from 'next/server';
+import type { Models } from '@/prisma/contract.d';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,7 @@ export async function GET(request: Request) {
   const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL && !process.env.NEXT_PUBLIC_SITE_URL.includes('railway.app'))
     ? process.env.NEXT_PUBLIC_SITE_URL
     : requestUrl || 'https://www.theinformationhub.uk';
-  let pages: any[] = [];
+  let pages: Models.public_Page[] = [];
 
   try {
     if (process.env.DATABASE_URL) {
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
-  ${pages.map((page: any) => `
+  ${pages.map((page) => `
   <url>
     <loc>${baseUrl}/${page.slug}</loc>
     <lastmod>${new Date(page.updatedAt).toISOString()}</lastmod>
