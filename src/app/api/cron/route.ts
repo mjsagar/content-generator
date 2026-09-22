@@ -30,6 +30,31 @@ export async function GET(request: Request) {
   }
 
   const { db } = await import('@/prisma/db');
+  const { getTopicImage } = await import('@/lib/services/image');
+
+  const url = new URL(request.url);
+  const action = url.searchParams.get('action');
+
+  if (action === 're-resolve-images') {
+    const allPages = await db.orm.public.Page.all();
+    const seenImages = new Set<string>();
+    const results = [];
+    for (const page of allPages) {
+      const freshImage = await getTopicImage(page.title, page.type, seenImages);
+      seenImages.add(freshImage);
+
+      const imgMatch = page.content.match(/<img[^>]+src="([^">]+)"/);
+      let newContent = page.content;
+      if (imgMatch) {
+        newContent = newContent.replace(imgMatch[1], freshImage);
+      } else {
+        newContent = `<img src="${freshImage}" alt="${page.title}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />\n` + newContent;
+      }
+      await db.orm.public.Page.where({ id: page.id }).update({ content: newContent });
+      results.push({ slug: page.slug, title: page.title, image: freshImage });
+    }
+    return NextResponse.json({ status: 'Images re-resolved', count: results.length, results });
+  }
 
   const config = await db.orm.public.Config.where({ key: 'GENERATION_INTERVAL_MINUTES' }).first();
   const intervalMinutes = config ? parseInt(config.value, 10) : 60;
@@ -37,7 +62,6 @@ export async function GET(request: Request) {
   const lastRunConfig = await db.orm.public.Config.where({ key: 'LAST_CRON_RUN' }).first();
   const now = Date.now();
 
-  const url = new URL(request.url);
   const force = url.searchParams.get('force') === 'true';
 
   if (!force && lastRunConfig) {

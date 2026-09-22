@@ -160,17 +160,17 @@ export function getTopicFallbackImage(topic: string, type?: string, usedImages?:
     poolKey = 'dog';
   } else if (lower.includes('cat') || lower.includes('kitten')) {
     poolKey = 'cat';
-  } else if (lower.includes('fish') || lower.includes('axolotl') || lower.includes('pet') || lower.includes('animal') || lower.includes('bird') || lower.includes('wildlife')) {
+  } else if (lower.includes('fish') || lower.includes('axolotl') || lower.includes('pet') || lower.includes('animal') || lower.includes('bird') || lower.includes('wildlife') || lower.includes('beaver') || lower.includes('hedgehog')) {
     poolKey = 'animal';
-  } else if (lower.includes('football') || lower.includes('baseball') || lower.includes('park') || lower.includes('messi') || lower.includes('stadium') || lower.includes('game') || lower.includes('sport')) {
+  } else if (lower.includes('football') || lower.includes('baseball') || lower.includes('park') || lower.includes('messi') || lower.includes('stadium') || lower.includes('game') || lower.includes('sport') || lower.includes('swimming')) {
     poolKey = 'sports';
-  } else if (lower.includes('mansion') || lower.includes('city') || lower.includes('historic') || lower.includes('building') || lower.includes('residence') || lower.includes('castle') || lower.includes('palace')) {
+  } else if (lower.includes('mansion') || lower.includes('city') || lower.includes('historic') || lower.includes('building') || lower.includes('residence') || lower.includes('castle') || lower.includes('palace') || lower.includes('railway')) {
     poolKey = 'landmark';
-  } else if (lower.includes('tech') || lower.includes('app') || lower.includes('ai') || lower.includes('software') || lower.includes('digital') || lower.includes('robot')) {
+  } else if (lower.includes('tech') || lower.includes('app') || lower.includes('ai') || lower.includes('software') || lower.includes('digital') || lower.includes('robot') || lower.includes('charger') || lower.includes('charging')) {
     poolKey = 'tech';
   } else if (lower.includes('pension') || lower.includes('money') || lower.includes('isa') || lower.includes('finance') || lower.includes('tax') || lower.includes('mortgage')) {
     poolKey = 'finance';
-  } else if (type === 'niche' || lower.includes('plant') || lower.includes('garden') || lower.includes('nature') || lower.includes('forest') || lower.includes('lake')) {
+  } else if (type === 'niche' || lower.includes('plant') || lower.includes('garden') || lower.includes('nature') || lower.includes('forest') || lower.includes('lake') || lower.includes('river') || lower.includes('rewilding')) {
     poolKey = 'nature';
   }
 
@@ -197,22 +197,125 @@ export function getTopicFallbackImage(topic: string, type?: string, usedImages?:
 }
 
 /**
- * Fetches an authentic, unstretched, and guaranteed UNIQUE image for a given topic.
- * Queries Wikimedia Commons API with gsrlimit=10, rejecting any image already in usedImages.
+ * Simple English stemmer to match singular/plural and verb forms (e.g. beaver/beavers, valley/valleys)
+ */
+export function stemWord(word: string): string {
+  if (!word) return '';
+  return word
+    .toLowerCase()
+    .replace(/ies$/, 'y')
+    .replace(/es$/, '')
+    .replace(/s$/, '');
+}
+
+/**
+ * Checks if a Wikipedia page title is genuinely relevant to the search query and article topic.
+ * Rejects unrelated pages (e.g. Henry David Thoreau for beavers, Nikolai Yezhov for hedgehogs).
+ */
+export function isPageRelevant(pageTitle: string, term: string, topicOrTitle: string): boolean {
+  if (!pageTitle) return false;
+  if (/\(disambiguation\)/i.test(pageTitle)) return false;
+
+  const pageTokens = getSignificantTokens(pageTitle).map(stemWord);
+  if (pageTokens.length === 0) return false;
+
+  const termTokens = getSignificantTokens(term).map(stemWord);
+  const topicTokens = getSignificantTokens(topicOrTitle).map(stemWord);
+
+  const termSet = new Set(termTokens);
+  const topicSet = new Set(topicTokens);
+
+  // Check for shared significant stem
+  const matchesTerm = pageTokens.some(pt => termSet.has(pt));
+  const matchesTopic = pageTokens.some(pt => topicSet.has(pt));
+
+  if (!matchesTerm && !matchesTopic) {
+    return false;
+  }
+
+  // Reject biographies / historical figures if the topic is nature/wildlife
+  const lowerTopic = (topicOrTitle || '').toLowerCase();
+  const lowerPage = pageTitle.toLowerCase();
+  const isNatureTopic = lowerTopic.includes('beaver') || lowerTopic.includes('hedgehog') || lowerTopic.includes('river') || lowerTopic.includes('plant') || lowerTopic.includes('tree') || lowerTopic.includes('garden') || lowerTopic.includes('wildlife');
+  if (isNatureTopic && (lowerPage.includes('thoreau') || lowerPage.includes('yezhov') || lowerPage.includes('village') || lowerPage.includes('town'))) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Extracts candidate Wikipedia search terms in priority order from a topic title.
+ */
+export function extractCandidateSearchTerms(title: string): string[] {
+  if (!title) return [];
+  const terms: string[] = [];
+  const lower = title.toLowerCase();
+
+  // 1. High-priority specific entity cues
+  if (lower.includes('beaver')) terms.push('Eurasian beaver', 'Beaver in the United Kingdom', 'Beaver');
+  if (lower.includes('hedgehog')) terms.push('European hedgehog', 'Hedgehog');
+  if (lower.includes('monstera')) terms.push('Monstera deliciosa');
+  if (lower.includes('border terrier')) terms.push('Border Terrier');
+  if (lower.includes('canal boat') || lower.includes('canal boating')) terms.push('Narrowboat', 'Canal boat');
+  if (lower.includes('axolotl')) terms.push('Axolotl');
+  if (lower.includes('cash isa') || lower.includes('stocks & shares isa') || lower.includes('lifetime isa') || lower.includes(' isa')) {
+    terms.push('Individual Savings Account');
+  }
+  if (lower.includes('ev fast chargers') || lower.includes('ev charging') || lower.includes('fast-chargers')) {
+    terms.push('Charging station', 'Electric vehicle');
+  }
+  if (lower.includes('bruce willis')) terms.push('Bruce Willis');
+  if (lower.includes('alexis bledel')) terms.push('Alexis Bledel');
+  if (lower.includes('frank gardner')) terms.push('Frank Gardner');
+  if (lower.includes('ed davey')) terms.push('Ed Davey');
+  if (lower.includes('russell davies') || lower.includes('russell t davies')) terms.push('Russell T Davies');
+  if (lower.includes('inside soap')) terms.push('Inside Soap Awards');
+  if (lower.includes('lioness')) terms.push('Special Ops: Lioness');
+
+  // 2. Subtitle extraction (e.g. "Topic: Subtopic" -> examine both parts)
+  if (title.includes(':')) {
+    const parts = title.split(':').map(s => s.trim());
+    if (parts[1]) {
+      const cleanSub = parts[1]
+        .replace(/^(the|a|an)\s+/i, '')
+        .replace(/^(return of|rise of|secret life of|everything you need to know about)\s+/i, '')
+        .replace(/\s+(and their ecosystem impact|everything uk viewers need to know|in 2024|in 2025|in 2026).*$/i, '')
+        .trim();
+      if (cleanSub.length >= 3) terms.push(cleanSub);
+    }
+    if (parts[0]) {
+      const cleanMain = parts[0]
+        .replace(/^(the|ultimate|inside|how to|guide to)\s+/i, '')
+        .trim();
+      if (cleanMain.length >= 3) terms.push(cleanMain);
+    }
+  }
+
+  // 3. Fall back to extractCoreSubject and full title
+  const core = extractCoreSubject(title);
+  if (core && !terms.includes(core)) terms.push(core);
+  if (!terms.includes(title)) terms.push(title);
+
+  return Array.from(new Set(terms.filter(Boolean)));
+}
+
+/**
+ * Fetches an authentic, unstretched, verified RELEVANT, and guaranteed UNIQUE image for a given topic.
+ * Queries Wikimedia Commons API, sorting by relevance index and enforcing topical match against the page title.
  */
 export async function getTopicImage(
   topicOrTitle: string,
   type?: string,
   usedImages?: Set<string>
 ): Promise<string> {
-  const subject = extractCoreSubject(topicOrTitle);
-  const searchTerms = Array.from(new Set([subject, topicOrTitle].filter(Boolean)));
+  const searchTerms = extractCandidateSearchTerms(topicOrTitle);
 
-  const fetchImageForTerm = async (term: string) => {
+  const fetchImageForTerm = async (term: string): Promise<string> => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    // Request 10 search results to find a unique, unused image
+    // Request search results to find a unique, relevant, unused image
     const url = `https://en.wikipedia.org/w/api.php?action=query&format=json&prop=pageimages&generator=search&gsrsearch=${encodeURIComponent(term)}&gsrlimit=10&pithumbsize=1200`;
     const res = await fetch(url, {
       headers: {
@@ -227,25 +330,40 @@ export async function getTopicImage(
     const data = await res.json();
     const pages = data?.query?.pages;
     if (pages) {
-      // Iterate through all returned Wikipedia pages to find one with an unused image
-      for (const pageId of Object.keys(pages)) {
-        const thumb = pages[pageId]?.thumbnail?.source;
-        if (thumb && typeof thumb === 'string') {
-          // Check if this image was already used on another article
-          if (usedImages && usedImages.has(thumb)) {
-            continue; // Skip duplicate image!
-          }
-          return thumb;
+      // Sort pages by Wikipedia's relevance index
+      const sortedPages = Object.values(pages).sort((a: any, b: any) => (a.index || 999) - (b.index || 999));
+
+      for (const page of sortedPages as any[]) {
+        const thumb = page?.thumbnail?.source;
+        const pageTitle = page?.title;
+        if (!thumb || typeof thumb !== 'string') continue;
+
+        // Verify relevance: ensure the Wikipedia page actually matches the topic/term
+        if (!isPageRelevant(pageTitle, term, topicOrTitle)) {
+          continue;
         }
+
+        // Check if this image was already used on another article
+        if (usedImages && usedImages.has(thumb)) {
+          continue;
+        }
+
+        return thumb;
       }
     }
-    throw new Error(`No unused image found for term: ${term}`);
+    throw new Error(`No relevant unused image found for term: ${term}`);
   };
 
-  try {
-    return await Promise.any(searchTerms.map(fetchImageForTerm));
-  } catch {
-    // Fallback to a guaranteed unused category image if all search terms fail
-    return getTopicFallbackImage(topicOrTitle, type, usedImages);
+  // Evaluate candidate search terms in priority order
+  for (const term of searchTerms) {
+    try {
+      const img = await fetchImageForTerm(term);
+      if (img) return img;
+    } catch {
+      // Try next candidate term
+    }
   }
+
+  // Fallback to a guaranteed unused category image if all search terms fail
+  return getTopicFallbackImage(topicOrTitle, type, usedImages);
 }

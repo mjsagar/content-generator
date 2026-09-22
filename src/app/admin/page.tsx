@@ -131,6 +131,51 @@ export default async function AdminDashboard() {
     revalidatePath('/');
   }
 
+  async function reResolveAllImages() {
+    'use server';
+    if (!process.env.DATABASE_URL) return;
+    const allPages = await db.orm.public.Page.all();
+    const seenImages = new Set<string>();
+
+    for (const page of allPages) {
+      const freshImage = await getTopicImage(page.title, page.type, seenImages);
+      seenImages.add(freshImage);
+
+      const imgMatch = page.content.match(/<img[^>]+src="([^">]+)"/);
+      let newContent = page.content;
+      if (imgMatch) {
+        newContent = newContent.replace(imgMatch[1], freshImage);
+      } else {
+        newContent = `<img src="${freshImage}" alt="${page.title}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />\n` + newContent;
+      }
+      await db.orm.public.Page.where({ id: page.id }).update({ content: newContent });
+    }
+    revalidatePath('/admin');
+    revalidatePath('/');
+  }
+
+  async function refreshArticleImage(formData: FormData) {
+    'use server';
+    if (!process.env.DATABASE_URL) return;
+    const id = formData.get('id') as string;
+    if (!id) return;
+    const page = await db.orm.public.Page.where({ id }).first();
+    if (!page) return;
+
+    const freshImage = await getTopicImage(page.title, page.type);
+    const imgMatch = page.content.match(/<img[^>]+src="([^">]+)"/);
+    let newContent = page.content;
+    if (imgMatch) {
+      newContent = newContent.replace(imgMatch[1], freshImage);
+    } else {
+      newContent = `<img src="${freshImage}" alt="${page.title}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />\n` + newContent;
+    }
+    await db.orm.public.Page.where({ id: page.id }).update({ content: newContent });
+    revalidatePath('/admin');
+    revalidatePath(`/${page.slug}`);
+    revalidatePath('/');
+  }
+
   async function deleteArticle(formData: FormData) {
     'use server';
     if (!process.env.DATABASE_URL) return;
@@ -226,6 +271,14 @@ export default async function AdminDashboard() {
                 <span>🖼️</span> Fix Duplicate Images
               </button>
             </form>
+            <form action={reResolveAllImages}>
+              <button
+                type="submit"
+                className="px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-medium rounded-md shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
+              >
+                <span>🎯</span> Re-resolve All Images
+              </button>
+            </form>
             <form action={triggerManualGeneration}>
               <button
                 type="submit"
@@ -273,10 +326,16 @@ export default async function AdminDashboard() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{page.views}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">${page.revenue.toFixed(2)}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{new Date(page.createdAt).toLocaleDateString()}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex items-center gap-3">
+                    <form action={refreshArticleImage}>
+                      <input type="hidden" name="id" value={page.id} />
+                      <button type="submit" className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300 cursor-pointer">
+                        Fix Image
+                      </button>
+                    </form>
                     <form action={deleteArticle}>
                       <input type="hidden" name="id" value={page.id} />
-                      <button type="submit" className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                      <button type="submit" className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 cursor-pointer">
                         Delete
                       </button>
                     </form>

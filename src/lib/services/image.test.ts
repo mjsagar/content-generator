@@ -103,3 +103,66 @@ describe('extractCoreSubject', () => {
     });
   });
 });
+
+describe('stemWord', () => {
+  it('should stem plurals correctly', async () => {
+    const { stemWord } = await import('./image');
+    expect(stemWord('beavers')).toBe('beaver');
+    expect(stemWord('valleys')).toBe('valley');
+    expect(stemWord('hedgehogs')).toBe('hedgehog');
+    expect(stemWord('berries')).toBe('berry');
+  });
+});
+
+describe('isPageRelevant', () => {
+  it('should accept relevant pages and reject irrelevant pages for beaver article', async () => {
+    const { isPageRelevant } = await import('./image');
+    const topic = 'Rewilding the UK’s Forgotten River Valleys: The Return of Beavers and Their Ecosystem Impact';
+
+    // Must accept authentic beaver matches
+    expect(isPageRelevant('Eurasian beaver', 'Eurasian beaver', topic)).toBe(true);
+    expect(isPageRelevant('Beaver', 'Beaver', topic)).toBe(true);
+    expect(isPageRelevant('Eurasian beaver reintroduction', 'Eurasian beaver', topic)).toBe(true);
+
+    // Must reject unrelated matches
+    expect(isPageRelevant('Henry David Thoreau', 'Rewilding the UK’s Forgotten River Valleys', topic)).toBe(false);
+    expect(isPageRelevant('Ghost town', 'Rewilding the UK’s Forgotten River Valleys', topic)).toBe(false);
+    expect(isPageRelevant('Abandoned village', 'Rewilding the UK’s Forgotten River Valleys', topic)).toBe(false);
+    expect(isPageRelevant('Ecofascism', 'Rewilding the UK’s Forgotten River Valleys', topic)).toBe(false);
+  });
+
+  it('should reject Nikolai Yezhov for hedgehog article', async () => {
+    const { isPageRelevant } = await import('./image');
+    const topic = 'The secret life of hedgehog highways: mapping community corridors in urban Britain';
+
+    expect(isPageRelevant('European hedgehog', 'European hedgehog', topic)).toBe(true);
+    expect(isPageRelevant('Hedgehog', 'Hedgehog', topic)).toBe(true);
+    expect(isPageRelevant('Nikolai Yezhov', 'hedgehog highways', topic)).toBe(false);
+  });
+
+  it('should accept relevant person pages for celebrity/people articles', async () => {
+    const { isPageRelevant } = await import('./image');
+    expect(isPageRelevant('Bruce Willis', 'Bruce Willis', 'Bruce Willis: Action Icon Who Rules UK')).toBe(true);
+    expect(isPageRelevant('Alexis Bledel', 'Alexis Bledel', 'Alexis Bledel: From Gilmore Girls Icon to UK')).toBe(true);
+  });
+});
+
+describe('extractCandidateSearchTerms', () => {
+  it('should extract specific entity cues in priority order', async () => {
+    const { extractCandidateSearchTerms } = await import('./image');
+    const terms = extractCandidateSearchTerms('Rewilding the UK’s Forgotten River Valleys: The Return of Beavers and Their Ecosystem Impact');
+
+    expect(terms).toContain('Eurasian beaver');
+    expect(terms).toContain('Beaver');
+    expect(terms[0]).toBe('Eurasian beaver');
+  });
+
+  it('should extract hedgehog cues', async () => {
+    const { extractCandidateSearchTerms } = await import('./image');
+    const terms = extractCandidateSearchTerms('The secret life of hedgehog highways: mapping community corridors in urban Britain');
+
+    expect(terms).toContain('European hedgehog');
+    expect(terms).toContain('Hedgehog');
+  });
+});
+
