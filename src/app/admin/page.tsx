@@ -3,16 +3,17 @@ import { revalidatePath } from 'next/cache';
 import { runContentGenerationJob } from '@/lib/jobs/runner';
 import { sanitizeHtml } from '@/lib/utils/content';
 import { isTopicSimilar, getTopicImage } from '@/lib/services/image';
+import type { Models } from '@/prisma/contract.d';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDashboard() {
   const pages = process.env.DATABASE_URL ? await db.orm.public.Page.all() : [];
 
-  const totalViews = pages.reduce((sum: number, page: any) => sum + page.views, 0);
-  const totalRevenue = pages.reduce((sum: number, page: any) => sum + page.revenue, 0);
-  const totalTrends = pages.filter((p: any) => p.type === 'trend').length;
-  const totalNiches = pages.filter((p: any) => p.type === 'niche').length;
+  const totalViews = pages.reduce((sum: number, page: Models.public_Page) => sum + page.views, 0);
+  const totalRevenue = pages.reduce((sum: number, page: Models.public_Page) => sum + page.revenue, 0);
+  const totalTrends = pages.filter((p: Models.public_Page) => p.type === 'trend').length;
+  const totalNiches = pages.filter((p: Models.public_Page) => p.type === 'niche').length;
 
   let config = null;
   if (process.env.DATABASE_URL) {
@@ -64,9 +65,13 @@ export default async function AdminDashboard() {
     if (!process.env.DATABASE_URL) return;
     const allPages = await db.orm.public.Page.all();
 
+<<<<<<< HEAD
     const keptPages: any[] = [];
     const idsToDelete: string[] = [];
 
+=======
+    const keptPages: Models.public_Page[] = [];
+>>>>>>> origin/fix-admin-any-types-4707245379504080528
     for (const page of allPages) {
       const duplicateIndex = keptPages.findIndex(k => isTopicSimilar(page.title, k.title));
       if (duplicateIndex !== -1) {
@@ -262,7 +267,7 @@ export default async function AdminDashboard() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {pages.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 50).map((page: any) => (
+              {pages.sort((a: Models.public_Page, b: Models.public_Page) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 50).map((page: Models.public_Page) => (
                 <tr key={page.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white truncate max-w-[200px]">{page.title}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
