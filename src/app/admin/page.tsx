@@ -44,12 +44,16 @@ export default async function AdminDashboard() {
     const { sanitizeHtml } = await import('@/lib/utils/content');
     if (!process.env.DATABASE_URL) return;
     const allPages = await db.orm.public.Page.all();
+
+    const updatePromises = [];
     for (const p of allPages) {
       const cleaned = sanitizeHtml(p.content, p.title, p.type);
       if (cleaned !== p.content) {
-        await db.orm.public.Page.where({ id: p.id }).update({ content: cleaned });
+        updatePromises.push(db.orm.public.Page.where({ id: p.id }).update({ content: cleaned }));
       }
     }
+    await Promise.all(updatePromises);
+
     revalidatePath('/admin');
     revalidatePath('/');
   }
