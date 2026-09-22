@@ -273,19 +273,11 @@ export default function CategoryFilterLayout({
 
                       {/* Card Content */}
                       <div className="p-5 flex flex-col h-full flex-1">
-                        {/* Badges: Category & Type */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        {/* Category Badge */}
+                        <div className="flex items-center mb-3">
                           <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide border ${catMeta.badgeBg} ${catMeta.badgeText} ${catMeta.border}`}>
                             <span>{catMeta.icon}</span>
                             <span>{catMeta.name}</span>
-                          </span>
-
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
-                            page.type === 'trend'
-                              ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                              : 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
-                          }`}>
-                            {page.type}
                           </span>
                         </div>
 
