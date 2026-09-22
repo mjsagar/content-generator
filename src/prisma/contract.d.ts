@@ -34,7 +34,7 @@ import type {
 } from '@prisma/orm-postgres/contract/types';
 
 export type StorageHash =
-  StorageHashBase<'6fbd8aa5af8390df79ca68ef7ade0ed421aed9145569d71ec8920b66242fdc80'>;
+  StorageHashBase<'670aa32c3ac2b93eb5fbc815e06594815fb8807f0560954758e7d557f3799f1d'>;
 export type ExecutionHash =
   ExecutionHashBase<'74ec87dc0b09921b6179b377d4b84428dd9235acab0b59ca4a3ab6688553d4db'>;
 export type ProfileHash =
@@ -255,6 +255,7 @@ export type FieldOutputTypes = {
       readonly title: CodecTypes['pg/text@1']['output'];
       readonly content: CodecTypes['pg/text@1']['output'];
       readonly type: CodecTypes['pg/text@1']['output'];
+      readonly category: CodecTypes['pg/text@1']['output'] | null;
       readonly views: CodecTypes['pg/int4@1']['output'];
       readonly revenue: CodecTypes['pg/float8@1']['output'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -277,6 +278,7 @@ export type FieldInputTypes = {
       readonly title: CodecTypes['pg/text@1']['input'];
       readonly content: CodecTypes['pg/text@1']['input'];
       readonly type: CodecTypes['pg/text@1']['input'];
+      readonly category: CodecTypes['pg/text@1']['input'] | null;
       readonly views: CodecTypes['pg/int4@1']['input'];
       readonly revenue: CodecTypes['pg/float8@1']['input'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
@@ -294,6 +296,7 @@ export type StorageColumnTypes = {
       readonly value: CodecTypes['pg/text@1']['output'];
     };
     readonly page: {
+      readonly category: CodecTypes['pg/text@1']['output'] | null;
       readonly content: CodecTypes['pg/text@1']['output'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
       readonly id: CodecTypes['pg/text@1']['output'];
@@ -316,6 +319,7 @@ export type StorageColumnInputTypes = {
       readonly value: CodecTypes['pg/text@1']['input'];
     };
     readonly page: {
+      readonly category: CodecTypes['pg/text@1']['input'] | null;
       readonly content: CodecTypes['pg/text@1']['input'];
       readonly createdAt: CodecTypes['pg/timestamptz-string@1']['input'];
       readonly id: CodecTypes['pg/text@1']['input'];
@@ -336,6 +340,7 @@ export namespace Models {
     title: CodecTypes['pg/text@1']['output'];
     content: CodecTypes['pg/text@1']['output'];
     type: CodecTypes['pg/text@1']['output'];
+    category: CodecTypes['pg/text@1']['output'] | null;
     views: CodecTypes['pg/int4@1']['output'];
     revenue: CodecTypes['pg/float8@1']['output'];
     createdAt: CodecTypes['pg/timestamptz-string@1']['output'];
@@ -437,6 +442,11 @@ type ContractBase = Omit<
                   readonly nativeType: 'text';
                   readonly codecId: 'pg/text@1';
                   readonly nullable: false;
+                };
+                readonly category: {
+                  readonly nativeType: 'text';
+                  readonly codecId: 'pg/text@1';
+                  readonly nullable: true;
                 };
                 readonly views: {
                   readonly nativeType: 'int4';
@@ -555,6 +565,10 @@ type ContractBase = Omit<
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
               };
+              readonly category: {
+                readonly nullable: true;
+                readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/text@1' };
+              };
               readonly views: {
                 readonly nullable: false;
                 readonly type: { readonly kind: 'scalar'; readonly codecId: 'pg/int4@1' };
@@ -588,6 +602,7 @@ type ContractBase = Omit<
                 readonly title: { readonly column: 'title' };
                 readonly content: { readonly column: 'content' };
                 readonly type: { readonly column: 'type' };
+                readonly category: { readonly column: 'category' };
                 readonly views: { readonly column: 'views' };
                 readonly revenue: { readonly column: 'revenue' };
                 readonly createdAt: { readonly column: 'createdAt' };

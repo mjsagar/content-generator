@@ -6,6 +6,7 @@ model Page {
   title     String
   content   String
   type      String   // "trend" or "niche"
+  category  String?  // "Wildlife & Nature", "Personal Finance", etc.
   views     Int      @default(0)
   revenue   Float    @default(0.0) // Estimated revenue based on views/ad clicks
   createdAt TimestamptzString @default(now())

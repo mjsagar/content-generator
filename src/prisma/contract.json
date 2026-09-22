@@ -80,6 +80,13 @@
           },
           "Page": {
             "fields": {
+              "category": {
+                "nullable": true,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
               "content": {
                 "nullable": false,
                 "type": {
@@ -147,6 +154,9 @@
             "relations": {},
             "storage": {
               "fields": {
+                "category": {
+                  "column": "category"
+                },
                 "content": {
                   "column": "content"
                 },
@@ -237,6 +247,11 @@
             },
             "page": {
               "columns": {
+                "category": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": true
+                },
                 "content": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
@@ -316,7 +331,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "6fbd8aa5af8390df79ca68ef7ade0ed421aed9145569d71ec8920b66242fdc80"
+    "storageHash": "670aa32c3ac2b93eb5fbc815e06594815fb8807f0560954758e7d557f3799f1d"
   },
   "execution": {
     "executionHash": "74ec87dc0b09921b6179b377d4b84428dd9235acab0b59ca4a3ab6688553d4db",

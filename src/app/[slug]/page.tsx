@@ -41,12 +41,29 @@ export default async function DynamicPage({ params }: PageProps) {
       });
   }
 
+  // Auto-backfill category if missing
+  const { getCategoryMeta, inferArticleCategory } = await import('@/lib/services/category');
+  const categoryName = page.category || inferArticleCategory(page.title, page.content);
+  if (!page.category) {
+    db.orm.public.Page.where({ id: page.id }).update({ category: categoryName }).catch(() => {});
+  }
+  const catMeta = getCategoryMeta(categoryName);
+
   return (
     <main className="max-w-4xl mx-auto p-6 md:p-12">
       <div className="mb-12 text-center">
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 mb-6 uppercase tracking-wider">
-          {page.type === 'trend' ? 'Editorial Analysis' : 'Expert Guide'}
-        </span>
+        <div className="flex items-center justify-center gap-2 mb-6 flex-wrap">
+          <a
+            href={`/?category=${catMeta.id}`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all hover:opacity-85 ${catMeta.badgeBg} ${catMeta.badgeText} ${catMeta.border}`}
+          >
+            <span>{catMeta.icon}</span>
+            <span>{catMeta.name}</span>
+          </a>
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 uppercase tracking-wider">
+            {page.type === 'trend' ? 'Editorial Analysis' : 'Expert Guide'}
+          </span>
+        </div>
         <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-gray-900 dark:text-gray-100 leading-tight font-serif">
           {page.title}
         </h1>

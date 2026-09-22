@@ -14,7 +14,7 @@ export async function generateContent(
   topic: string,
   type: 'trend' | 'niche',
   usedImages?: Set<string>
-): Promise<{ title: string; content: string; slug: string }> {
+): Promise<{ title: string; content: string; slug: string; category: string }> {
   const groq = getGroqClient();
   try {
     // Resolve authentic, high-quality, guaranteed UNIQUE header image
@@ -36,7 +36,7 @@ export async function generateContent(
                 - An in-depth introduction.
                 - Detailed, well-structured body sections with clear subheadings, using blockquotes for emphasis where appropriate.
                 - A concluding 'Final Thoughts' or 'Future Outlook' section.
-                Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
+                Output the response in JSON format with exactly four fields: "title", "content" (in HTML format, ready to be displayed), "slug" (a URL-friendly string derived from the title), and "category" (choose one of: "Wildlife & Nature", "Personal Finance", "Heritage & Travel", "Home & Garden", "Tech & Innovation", "Sports & Culture", "News & Society", "General").
                 CRITICAL: The HTML in "content" must be semantic and rich (<h2>, <h3>, <p>, <ul>, <li>, <blockquote>, <strong>). Do NOT include literal '\\n' strings or markdown code fences. Format using standard HTML tags. Include this exact header image tag right after the main headline / at the top of the content: <img src="${headerImageUrl}" alt="${topic}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
     } else {
       prompt = `Write an authoritative, comprehensive, and bespoke expert guide for the specific niche: "${topic}".
@@ -49,7 +49,7 @@ export async function generateContent(
                 - A thorough introduction establishing authority.
                 - Detailed body sections broken down logically with subheadings, providing advanced insights rather than basic tips.
                 - A concluding summary.
-                Output the response in JSON format with exactly three fields: "title", "content" (in HTML format, ready to be displayed), and "slug" (a URL-friendly string derived from the title).
+                Output the response in JSON format with exactly four fields: "title", "content" (in HTML format, ready to be displayed), "slug" (a URL-friendly string derived from the title), and "category" (choose one of: "Wildlife & Nature", "Personal Finance", "Heritage & Travel", "Home & Garden", "Tech & Innovation", "Sports & Culture", "News & Society", "General").
                 CRITICAL: The HTML in "content" must be semantic and rich (<h2>, <h3>, <p>, <ul>, <li>, <blockquote>, <strong>). Do NOT include literal '\\n' strings or markdown code fences. Format using standard HTML tags. Include this exact header image tag right after the main title / at the top of the content: <img src="${headerImageUrl}" alt="${topic}" class="w-full h-auto rounded-2xl shadow-lg mb-8" />. Do NOT wrap the output in html/head/body tags.`;
     }
 
@@ -57,7 +57,7 @@ export async function generateContent(
       messages: [
         {
           role: "system",
-          content: "You are an expert journalist, senior copywriter, and advanced SEO specialist writing for a UK audience. Always use British English spelling and conventions. Produce authoritative, highly professional content. Always output exactly valid JSON containing \"title\", \"content\", and \"slug\". The \"content\" field should contain well-formatted, beautiful semantic HTML designed for modern editorial styling with no literal '\\n' escape strings."
+          content: "You are an expert journalist, senior copywriter, and advanced SEO specialist writing for a UK audience. Always use British English spelling and conventions. Produce authoritative, highly professional content. Always output exactly valid JSON containing \"title\", \"content\", \"slug\", and \"category\". The \"content\" field should contain well-formatted, beautiful semantic HTML designed for modern editorial styling with no literal '\\n' escape strings."
         },
         {
           role: "user",
@@ -76,10 +76,16 @@ export async function generateContent(
     }
 
     const parsedResult = JSON.parse(result);
+    const { inferArticleCategory, CATEGORY_NAMES } = await import('@/lib/services/category');
+    const assignedCategory = CATEGORY_NAMES.includes(parsedResult.category)
+      ? parsedResult.category
+      : inferArticleCategory(parsedResult.title, parsedResult.content);
+
     return {
       title: parsedResult.title,
       content: sanitizeHtml(parsedResult.content, parsedResult.title, type),
-      slug: parsedResult.slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+      slug: parsedResult.slug.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, ''),
+      category: assignedCategory
     };
 
   } catch (error) {
