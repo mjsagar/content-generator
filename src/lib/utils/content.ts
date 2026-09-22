@@ -3,7 +3,6 @@
  */
 import DOMPurify from 'isomorphic-dompurify';
 import { getTopicFallbackImage } from '@/lib/services/image';
-import DOMPurify from 'isomorphic-dompurify';
 
 /**
  * Sanitizes HTML content from LLMs:

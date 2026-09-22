@@ -1,8 +1,0 @@
-<<<<<<< SEARCH
-    "clean": "npx tsx scripts/clean-content.ts"
-  },
-=======
-    "clean": "npx tsx scripts/clean-content.ts",
-    "test": "vitest run"
-  },
->>>>>>> REPLACE

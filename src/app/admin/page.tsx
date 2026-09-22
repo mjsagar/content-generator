@@ -65,13 +65,8 @@ export default async function AdminDashboard() {
     if (!process.env.DATABASE_URL) return;
     const allPages = await db.orm.public.Page.all();
 
-<<<<<<< HEAD
-    const keptPages: any[] = [];
-    const idsToDelete: string[] = [];
-
-=======
     const keptPages: Models.public_Page[] = [];
->>>>>>> origin/fix-admin-any-types-4707245379504080528
+    const idsToDelete: string[] = [];
     for (const page of allPages) {
       const duplicateIndex = keptPages.findIndex(k => isTopicSimilar(page.title, k.title));
       if (duplicateIndex !== -1) {

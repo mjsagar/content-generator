@@ -7,8 +7,6 @@ import { getTopicFallbackImage } from '@/lib/services/image';
 
 export const dynamic = 'force-dynamic';
 
-import type { Models } from '@/prisma/contract.d';
-
 export default async function Home() {
   let pages: Models.public_Page[] = [];
 
